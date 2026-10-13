@@ -1,0 +1,140 @@
+package com.usac.contactoalien.contactoalienbackend.api.validate;
+
+import com.usac.contactoalien.contactoalienbackend.errors.CollectingErrorListener;
+import com.usac.contactoalien.contactoalienbackend.errors.CompilerError;
+import com.usac.contactoalien.contactoalienbackend.errors.ErrorPhase;
+import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigLexer;
+import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigParser;
+import com.usac.contactoalien.contactoalienbackend.grammar.y.YLexer;
+import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser;
+import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoLexer;
+import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
+import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
+import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
+import com.usac.contactoalien.contactoalienbackend.semantic.symbols.ClassSymbolTable;
+import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.analysis.PigSemanticAnalyzer;
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.imports.PigImportLoader;
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.imports.PigImportResult;
+import com.usac.contactoalien.contactoalienbackend.semantic.y.analysis.YSemanticAnalyzer;
+import com.usac.contactoalien.contactoalienbackend.semantic.y.errors.YSemanticError;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+// Runs the full lexical + syntactic + semantic pipeline for one file in one of the three
+// languages. Lexical/syntactic errors are collected via CollectingErrorListener attached to
+// both the lexer and the parser; semantic errors come from each language's own analyzer.
+@Service
+public class ValidatorService {
+
+    public ValidateResponse validate(ValidateRequest request) {
+        List<CompilerError> errors = switch (request.language()) {
+            case "zetariano" -> validateZetariano(request.code());
+            case "y" -> validateY(request.code());
+            case "pig" -> validatePig(request.code(), request.imports());
+            default -> throw new IllegalArgumentException(
+                    "Unknown language: " + request.language() + " (expected zetariano, y or pig)");
+        };
+        return new ValidateResponse(errors.isEmpty(), errors);
+    }
+
+    private List<CompilerError> validateZetariano(String code) {
+        CollectingErrorListener lexicalListener = new CollectingErrorListener(ErrorPhase.LEXICAL);
+        ZetarianoLexer lexer = new ZetarianoLexer(CharStreams.fromString(code));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(lexicalListener);
+
+        CollectingErrorListener syntaxListener = new CollectingErrorListener(ErrorPhase.SYNTACTIC);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        ZetarianoParser parser = new ZetarianoParser(tokens);
+        parser.removeErrorListeners();
+        parser.addErrorListener(syntaxListener);
+
+        ZetarianoParser.ClassDeclarationContext classTree = parser.classDeclaration();
+
+        List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
+        errors.addAll(syntaxListener.getErrors());
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+
+        SemanticAnalyzer analyzer = new SemanticAnalyzer();
+        CompilationUnitRegistry registry = new CompilationUnitRegistry();
+        ClassSymbolTable classTable = analyzer.collectSymbols(classTree, registry);
+        registry.register(classTable);
+        analyzer.analyzeBodies(classTree, classTable, registry);
+
+        for (SemanticError e : analyzer.getErrors().getErrors()) {
+            errors.add(new CompilerError(e.getLine(), e.getColumn(), e.getMessage(), ErrorPhase.SEMANTIC));
+        }
+        return errors;
+    }
+
+    private List<CompilerError> validateY(String code) {
+        CollectingErrorListener lexicalListener = new CollectingErrorListener(ErrorPhase.LEXICAL);
+        YLexer lexer = new YLexer(CharStreams.fromString(code));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(lexicalListener);
+
+        CollectingErrorListener syntaxListener = new CollectingErrorListener(ErrorPhase.SYNTACTIC);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        YParser parser = new YParser(tokens);
+        parser.removeErrorListeners();
+        parser.addErrorListener(syntaxListener);
+
+        List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
+        errors.addAll(syntaxListener.getErrors());
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+
+        YParser.ProgramContext programTree = parser.program();
+        YSemanticAnalyzer analyzer = new YSemanticAnalyzer();
+        analyzer.analyze(programTree);
+
+        for (YSemanticError e : analyzer.getErrors().getErrors()) {
+            errors.add(new CompilerError(e.getLine(), e.getColumn(), e.getMessage(), ErrorPhase.SEMANTIC));
+        }
+        return errors;
+    }
+
+    // Pig Latin's import errors and body-analysis errors already come back as pre-formatted,
+    // file-prefixed strings without reliably separable line/column info, so they are wrapped as
+    // SEMANTIC CompilerErrors at (0, 0). Only genuine lexical/syntactic errors from the main
+    // .pig file itself carry real position info.
+    private List<CompilerError> validatePig(String code, Map<String, String> imports) {
+        Map<String, String> virtualFiles = imports != null ? imports : Collections.emptyMap();
+
+        CollectingErrorListener lexicalListener = new CollectingErrorListener(ErrorPhase.LEXICAL);
+        PigLexer lexer = new PigLexer(CharStreams.fromString(code));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(lexicalListener);
+
+        CollectingErrorListener syntaxListener = new CollectingErrorListener(ErrorPhase.SYNTACTIC);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        PigParser parser = new PigParser(tokens);
+        parser.removeErrorListeners();
+        parser.addErrorListener(syntaxListener);
+
+        List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
+        errors.addAll(syntaxListener.getErrors());
+        if (!errors.isEmpty()) {
+            return errors;
+        }
+
+        PigParser.ProgramContext programTree = parser.program();
+        PigImportResult importResult = new PigImportLoader().load(programTree.importDecl(), virtualFiles);
+        List<String> semanticMessages = new PigSemanticAnalyzer().analyze(programTree, importResult);
+
+        for (String message : semanticMessages) {
+            errors.add(new CompilerError(0, 0, message, ErrorPhase.SEMANTIC));
+        }
+        return errors;
+    }
+}
