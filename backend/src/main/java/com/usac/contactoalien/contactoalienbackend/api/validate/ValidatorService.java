@@ -3,11 +3,11 @@ package com.usac.contactoalien.contactoalienbackend.api.validate;
 import com.usac.contactoalien.contactoalienbackend.errors.CollectingErrorListener;
 import com.usac.contactoalien.contactoalienbackend.errors.CompilerError;
 import com.usac.contactoalien.contactoalienbackend.errors.ErrorPhase;
+import com.usac.contactoalien.contactoalienbackend.grammar.ParseOutcome;
+import com.usac.contactoalien.contactoalienbackend.grammar.SourceParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigLexer;
 import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigParser;
-import com.usac.contactoalien.contactoalienbackend.grammar.y.YLexer;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser;
-import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoLexer;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
@@ -45,24 +45,13 @@ public class ValidatorService {
     }
 
     private List<CompilerError> validateZetariano(String code) {
-        CollectingErrorListener lexicalListener = new CollectingErrorListener(ErrorPhase.LEXICAL);
-        ZetarianoLexer lexer = new ZetarianoLexer(CharStreams.fromString(code));
-        lexer.removeErrorListeners();
-        lexer.addErrorListener(lexicalListener);
-
-        CollectingErrorListener syntaxListener = new CollectingErrorListener(ErrorPhase.SYNTACTIC);
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        ZetarianoParser parser = new ZetarianoParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(syntaxListener);
-
-        ZetarianoParser.ClassDeclarationContext classTree = parser.classDeclaration();
-
-        List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
-        errors.addAll(syntaxListener.getErrors());
-        if (!errors.isEmpty()) {
-            return errors;
+        ParseOutcome<ZetarianoParser.ClassDeclarationContext> outcome = SourceParser.parseZetariano(code);
+        if (outcome.hasErrors()) {
+            return outcome.errors();
         }
+
+        ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
+        List<CompilerError> errors = new ArrayList<>(outcome.errors());
 
         SemanticAnalyzer analyzer = new SemanticAnalyzer();
         CompilationUnitRegistry registry = new CompilationUnitRegistry();
@@ -77,24 +66,14 @@ public class ValidatorService {
     }
 
     private List<CompilerError> validateY(String code) {
-        CollectingErrorListener lexicalListener = new CollectingErrorListener(ErrorPhase.LEXICAL);
-        YLexer lexer = new YLexer(CharStreams.fromString(code));
-        lexer.removeErrorListeners();
-        lexer.addErrorListener(lexicalListener);
-
-        CollectingErrorListener syntaxListener = new CollectingErrorListener(ErrorPhase.SYNTACTIC);
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        YParser parser = new YParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(syntaxListener);
-
-        List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
-        errors.addAll(syntaxListener.getErrors());
-        if (!errors.isEmpty()) {
-            return errors;
+        ParseOutcome<YParser.ProgramContext> outcome = SourceParser.parseY(code);
+        if (outcome.hasErrors()) {
+            return outcome.errors();
         }
 
-        YParser.ProgramContext programTree = parser.program();
+        YParser.ProgramContext programTree = outcome.tree();
+        List<CompilerError> errors = new ArrayList<>(outcome.errors());
+
         YSemanticAnalyzer analyzer = new YSemanticAnalyzer();
         analyzer.analyze(programTree);
 
