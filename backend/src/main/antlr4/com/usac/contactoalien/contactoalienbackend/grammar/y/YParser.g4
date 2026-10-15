@@ -83,14 +83,17 @@ elseClause
 
 switchStatement
     : ELEGIR LPAREN expression RPAREN LBRACE NEWLINE caseClause* defaultClause? RBRACE NEWLINE
+    | ELEGIR LPAREN expression RPAREN COLON NEWLINE INDENT caseClause* defaultClause? DEDENT
     ;
 
 caseClause
     : CASO expression COLON NEWLINE statement+
+    | CASO expression COLON NEWLINE INDENT statement+ DEDENT
     ;
 
 defaultClause
     : SIEMPRE COLON NEWLINE statement+
+    | SIEMPRE COLON NEWLINE INDENT statement+ DEDENT
     ;
 
 forStatement
