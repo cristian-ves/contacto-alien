@@ -284,6 +284,9 @@ public final class ExpressionTypeResolver {
     }
 
     private ZType resolveObjectCreation(PrimaryExpressionContext ctx) {
+        if (ctx.IDENTIFIER() == null) {
+            return ZType.UNKNOWN;
+        }
         String className = ctx.IDENTIFIER().getText();
         List<ZType> argTypes = resolveArguments(ctx.argumentList());
         ClassSymbolTable targetTable = className.equals(classSymbolTable.getClassName())

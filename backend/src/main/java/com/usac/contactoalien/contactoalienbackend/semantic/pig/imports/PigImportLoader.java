@@ -1,10 +1,11 @@
 package com.usac.contactoalien.contactoalienbackend.semantic.pig.imports;
 
+import com.usac.contactoalien.contactoalienbackend.errors.CompilerError;
+import com.usac.contactoalien.contactoalienbackend.grammar.ParseOutcome;
+import com.usac.contactoalien.contactoalienbackend.grammar.SourceParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigParser;
-import com.usac.contactoalien.contactoalienbackend.grammar.y.YLexer;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParserBaseVisitor;
-import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoLexer;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
@@ -12,8 +13,6 @@ import com.usac.contactoalien.contactoalienbackend.semantic.symbols.ClassSymbolT
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.analysis.YSemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.errors.YSemanticError;
-import org.antlr.v4.runtime.CharStreams;
-import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -62,10 +61,19 @@ public final class PigImportLoader {
     private void loadZetarianoImport(ImportPathResolver.ResolvedImport resolved, String content,
                                      CompilationUnitRegistry classRegistry,
                                      List<PendingZetariano> pendingClasses, List<String> errors) {
-        ZetarianoLexer lexer = new ZetarianoLexer(CharStreams.fromString(content));
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        ZetarianoParser parser = new ZetarianoParser(tokens);
-        ZetarianoParser.ClassDeclarationContext classTree = parser.classDeclaration();
+        ParseOutcome<ZetarianoParser.ClassDeclarationContext> outcome = SourceParser.parseZetariano(content);
+        if (outcome.hasErrors()) {
+            for (CompilerError e : outcome.errors()) {
+                errors.add("[" + resolved.getVirtualPath() + ":" + e.line() + ":" + e.column() + "] " + e.message());
+            }
+            return;
+        }
+
+        ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
+        if (classTree == null || classTree.IDENTIFIER() == null) {
+            errors.add("[" + resolved.getVirtualPath() + "] could not parse class declaration");
+            return;
+        }
 
         String actualClassName = classTree.IDENTIFIER().getText();
         if (!actualClassName.equals(resolved.getExpectedModuleName())) {
@@ -82,18 +90,29 @@ public final class PigImportLoader {
 
     private void loadYImport(ImportPathResolver.ResolvedImport resolved, String content,
                              ImportedYSymbols ySymbols, List<String> errors) {
-        YLexer lexer = new YLexer(CharStreams.fromString(content));
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        YParser parser = new YParser(tokens);
-        YParser.ProgramContext programTree = parser.program();
+        ParseOutcome<YParser.ProgramContext> outcome = SourceParser.parseY(content);
+        if (outcome.hasErrors()) {
+            for (CompilerError e : outcome.errors()) {
+                errors.add("[" + resolved.getVirtualPath() + ":" + e.line() + ":" + e.column() + "] " + e.message());
+            }
+            return;
+        }
+
+        YParser.ProgramContext programTree = outcome.tree();
+        if (programTree == null) {
+            errors.add("[" + resolved.getVirtualPath() + "] could not parse Y program");
+            return;
+        }
 
         YSemanticAnalyzer analyzer = new YSemanticAnalyzer();
         analyzer.analyze(programTree);
 
         List<String> structNames = collectAllStructNames(programTree);
         List<String> functionNames = new ArrayList<>();
-        for (YParser.FunctionDeclarationContext fn : programTree.functionsSection().functionDeclaration()) {
-            functionNames.add(fn.IDENTIFIER().getText());
+        if (programTree.functionsSection() != null && programTree.functionsSection().functionDeclaration() != null) {
+            for (YParser.FunctionDeclarationContext fn : programTree.functionsSection().functionDeclaration()) {
+                functionNames.add(fn.IDENTIFIER().getText());
+            }
         }
 
         List<String> collisions = ySymbols.addFrom(analyzer.getStructRegistry(), structNames,
