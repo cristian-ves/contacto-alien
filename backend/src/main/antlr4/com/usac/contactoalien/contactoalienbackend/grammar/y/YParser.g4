@@ -111,6 +111,7 @@ forUpdate
 
 whileStatement
     : MIENTRAS LPAREN expression RPAREN COLON NEWLINE INDENT statement+ DEDENT
+    | MIENTRAS LPAREN expression RPAREN HACER NEWLINE INDENT statement+ DEDENT
     ;
 
 doWhileStatement
