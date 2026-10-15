@@ -6,7 +6,7 @@ options {
 }
 
 program
-    : structuresSection? functionsSection EOF
+    : NEWLINE* structuresSection? functionsSection EOF
     ;
 
 structuresSection
