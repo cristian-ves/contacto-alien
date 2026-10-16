@@ -146,7 +146,7 @@ multiplicativeExpr
     ;
 
 unaryExpr
-    : (NOT | MINUS | PLUS) unaryExpr
+    : (NOT | NON | MINUS | PLUS) unaryExpr
     | postfixExpression
     ;
 

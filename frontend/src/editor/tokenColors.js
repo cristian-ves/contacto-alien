@@ -16,6 +16,7 @@ const OPERATOR_TYPES = new Set([
   'AND',
   'OR',
   'NOT',
+  'NON',
   'ASSIGN',
   'ARROW',
   'INC',

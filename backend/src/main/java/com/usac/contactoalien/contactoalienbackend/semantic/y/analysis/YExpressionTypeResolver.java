@@ -209,7 +209,7 @@ public final class YExpressionTypeResolver {
         }
         if (ctx.LEER() != null) {
             resolveArguments(ctx.argumentList());
-            return YType.CADENA;
+            return YType.UNKNOWN;
         }
         if (ctx.LBRACE() != null) {
             // structure/array literal: contents are visited (so inner errors are still

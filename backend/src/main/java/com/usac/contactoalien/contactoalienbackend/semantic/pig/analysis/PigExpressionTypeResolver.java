@@ -167,7 +167,7 @@ public final class PigExpressionTypeResolver {
     }
 
     private PigType resolveUnaryExpr(PigParser.UnaryExprContext ctx) {
-        if (ctx.NOT() != null) {
+        if (ctx.NOT() != null || ctx.NON() != null) {
             PigType operand = resolveUnaryExpr(ctx.unaryExpr());
             if (!PigTypeCompatibility.isValidLogicalOperand(operand)) {
                 reporter.report("operator '!' requires a bool operand, found " + operand, ctx);

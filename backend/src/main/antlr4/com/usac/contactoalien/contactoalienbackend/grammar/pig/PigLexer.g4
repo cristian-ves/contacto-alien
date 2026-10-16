@@ -20,6 +20,7 @@ PERGE       : 'perge';
 INTERRUMPE  : 'interrumpe';
 VERUM       : 'verum';
 FALSUS      : 'falsus';
+NON         : 'non';
 
 // Section markers, each a single token including '>'
 VARIABILES_SECTION : 'VARIABILES>';

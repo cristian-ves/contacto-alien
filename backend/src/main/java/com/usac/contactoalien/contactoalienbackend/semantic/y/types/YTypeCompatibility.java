@@ -50,10 +50,12 @@ public final class YTypeCompatibility {
         return type.getKind() == YType.Kind.BOOL;
     }
 
-    // Relational operators (<, >, <=, >=) only accept numeric (entero/flotante) operands
+    // Relational operators (<, >, <=, >=) accept numeric (entero/flotante) and caracter operands
     public static boolean isValidRelationalPair(YType left, YType right) {
         if (left.isUnknown() || right.isUnknown()) return true;
-        return left.isNumeric() && right.isNumeric();
+        boolean leftOk = left.isNumeric() || left.getKind() == YType.Kind.CARACTER;
+        boolean rightOk = right.isNumeric() || right.getKind() == YType.Kind.CARACTER;
+        return leftOk && rightOk;
     }
 
     // Equality operators (==, !=) accept: numeric<->numeric, bool<->bool, caracter<->caracter,
