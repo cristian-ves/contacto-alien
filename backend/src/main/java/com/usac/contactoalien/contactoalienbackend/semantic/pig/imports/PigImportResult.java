@@ -1,5 +1,6 @@
 package com.usac.contactoalien.contactoalienbackend.semantic.pig.imports;
 
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.errors.PigSemanticError;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
 
 import java.util.List;
@@ -11,9 +12,9 @@ public final class PigImportResult {
 
     private final CompilationUnitRegistry classRegistry;
     private final ImportedYSymbols ySymbols;
-    private final List<String> errors;
+    private final List<PigSemanticError> errors;
 
-    public PigImportResult(CompilationUnitRegistry classRegistry, ImportedYSymbols ySymbols, List<String> errors) {
+    public PigImportResult(CompilationUnitRegistry classRegistry, ImportedYSymbols ySymbols, List<PigSemanticError> errors) {
         this.classRegistry = classRegistry;
         this.ySymbols = ySymbols;
         this.errors = errors;
@@ -21,5 +22,5 @@ public final class PigImportResult {
 
     public CompilationUnitRegistry getClassRegistry() { return classRegistry; }
     public ImportedYSymbols getYSymbols() { return ySymbols; }
-    public List<String> getErrors() { return errors; }
+    public List<PigSemanticError> getErrors() { return errors; }
 }
