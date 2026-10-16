@@ -277,6 +277,7 @@ public final class ExpressionTypeResolver {
         if (ctx.NULL() != null) return ZType.NULL;
         if (ctx.THIS() != null) return classSymbolTable.getOwnType();
         if (ctx.READLN() != null) return ZType.STRING;
+        if (ctx.arrayCreation() != null) return new ArrayCreationResolver(this, classSymbolTable, registry, errors).resolve(ctx.arrayCreation());
         if (ctx.NEW() != null) return resolveObjectCreation(ctx);
         if (ctx.IDENTIFIER() != null) return resolveIdentifier(ctx);
         if (ctx.expression() != null) return resolve(ctx.expression());

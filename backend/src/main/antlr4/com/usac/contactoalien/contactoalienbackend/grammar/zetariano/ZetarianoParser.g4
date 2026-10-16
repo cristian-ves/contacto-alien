@@ -197,8 +197,13 @@ primaryExpression
     | THIS
     | READLN LPAREN RPAREN
     | IDENTIFIER
+    | arrayCreation
     | NEW IDENTIFIER LPAREN argumentList? RPAREN
     | LPAREN expression RPAREN
+    ;
+
+arrayCreation
+    : NEW (INT | DOUBLE | CHAR | BOOLEAN | STRING | IDENTIFIER) (LBRACKET expression RBRACKET)+
     ;
 
 argumentList
