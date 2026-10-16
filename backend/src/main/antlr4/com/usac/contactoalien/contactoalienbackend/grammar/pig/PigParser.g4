@@ -32,6 +32,7 @@ tipoBasico
     | TEXTUM
     | DECIMALIS
     | LITTERA
+    | BOOL
     ;
 
 arrayDecl
@@ -157,6 +158,8 @@ postfixOp
     : DOT IDENTIFIER
     | LBRACK expression RBRACK
     | LPAREN argumentList? RPAREN
+    | INC
+    | DEC
     ;
 
 primaryExpression

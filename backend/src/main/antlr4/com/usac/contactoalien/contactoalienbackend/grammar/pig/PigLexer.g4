@@ -11,6 +11,7 @@ NUMERUS     : 'numerus';
 TEXTUM      : 'textum';
 DECIMALIS   : 'decimalis';
 LITTERA     : 'littera';
+BOOL        : 'bool';
 SERIES      : 'series';
 DUM         : 'dum';
 FACERE      : 'facere';
@@ -43,6 +44,8 @@ GT  : '>';
 NOT : '!';
 
 // Arithmetic operators
+INC   : '++';
+DEC   : '--';
 PLUS  : '+';
 MINUS : '-';
 STAR  : '*';
@@ -72,6 +75,7 @@ fragment EscapeSeq : '\\' ["'\\n];
 IDENTIFIER : [a-zA-Z_][a-zA-Z0-9_]*;
 
 // Block comment: opening '##' line ... closing '##' line, sent to HIDDEN
+LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN);
 BLOCK_COMMENT : '##' .*? '##' -> channel(HIDDEN);
 
 WS : [ \t\r\n]+ -> skip;

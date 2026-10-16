@@ -34,11 +34,13 @@ public final class PigExpressionTypeResolver {
     private final PigImportResult importResult;
     private final PigSymbolTable symbolTable;
     private final PigErrorReporter reporter;
+    private final PigIncrementResolver incrementResolver;
 
     public PigExpressionTypeResolver(PigImportResult importResult, PigSymbolTable symbolTable, PigErrorReporter reporter) {
         this.importResult = importResult;
         this.symbolTable = symbolTable;
         this.reporter = reporter;
+        this.incrementResolver = new PigIncrementResolver(reporter);
     }
 
     public PigType resolve(PigParser.ExpressionContext ctx) {
@@ -240,6 +242,8 @@ public final class PigExpressionTypeResolver {
                 }
                 reporter.report("cannot call a value of type " + current + ", it is not a function or a method", ctx);
                 current = PigType.UNKNOWN;
+            } else if (op.INC() != null || op.DEC() != null) {
+                current = incrementResolver.resolve(op, current, ctx);
             }
         }
 

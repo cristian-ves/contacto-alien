@@ -101,13 +101,14 @@ public class ValidatorService {
         parser.removeErrorListeners();
         parser.addErrorListener(syntaxListener);
 
+        PigParser.ProgramContext programTree = parser.program();
+
         List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
         errors.addAll(syntaxListener.getErrors());
         if (!errors.isEmpty()) {
             return errors;
         }
 
-        PigParser.ProgramContext programTree = parser.program();
         PigImportResult importResult = new PigImportLoader().load(programTree.importDecl(), virtualFiles);
         List<String> semanticMessages = new PigSemanticAnalyzer().analyze(programTree, importResult);
 
