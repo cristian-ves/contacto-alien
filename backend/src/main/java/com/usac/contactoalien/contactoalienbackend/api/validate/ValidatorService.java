@@ -11,6 +11,7 @@ import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
+import com.usac.contactoalien.contactoalienbackend.semantic.imports.ZetarianoSiblingLoader;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.ClassSymbolTable;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.analysis.PigSemanticAnalyzer;
@@ -36,7 +37,7 @@ public class ValidatorService {
 
     public ValidateResponse validate(ValidateRequest request) {
         List<CompilerError> errors = switch (request.language()) {
-            case "zetariano" -> validateZetariano(request.code());
+            case "zetariano" -> validateZetariano(request.code(), request.imports());
             case "y" -> validateY(request.code());
             case "pig" -> validatePig(request.code(), request.imports());
             default -> throw new IllegalArgumentException(
@@ -45,17 +46,26 @@ public class ValidatorService {
         return new ValidateResponse(errors.isEmpty(), errors);
     }
 
-    private List<CompilerError> validateZetariano(String code) {
+    private List<CompilerError> validateZetariano(String code, Map<String, String> imports) {
         ParseOutcome<ZetarianoParser.ClassDeclarationContext> outcome = SourceParser.parseZetariano(code);
         if (outcome.hasErrors()) {
             return outcome.errors();
         }
 
         ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
+        String currentClassName = (classTree != null && classTree.IDENTIFIER() != null)
+                ? classTree.IDENTIFIER().getText()
+                : null;
+
+        ZetarianoSiblingLoader.LoadResult loadResult = new ZetarianoSiblingLoader().load(imports, currentClassName);
+        if (loadResult.hasErrors()) {
+            return loadResult.errors();
+        }
+
+        CompilationUnitRegistry registry = loadResult.registry();
         List<CompilerError> errors = new ArrayList<>(outcome.errors());
 
         SemanticAnalyzer analyzer = new SemanticAnalyzer();
-        CompilationUnitRegistry registry = new CompilationUnitRegistry();
         ClassSymbolTable classTable = analyzer.collectSymbols(classTree, registry);
         registry.register(classTable);
         analyzer.analyzeBodies(classTree, classTable, registry);
