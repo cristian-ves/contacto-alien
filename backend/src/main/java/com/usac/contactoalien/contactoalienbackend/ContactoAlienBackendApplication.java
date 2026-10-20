@@ -10,6 +10,7 @@ import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.analysis.PigSemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.imports.PigImportLoader;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.imports.PigImportResult;
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.errors.PigSemanticError;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -162,12 +163,12 @@ public class ContactoAlienBackendApplication {
 		}
 
 		PigImportResult importResult = new PigImportLoader().load(programTree.importDecl(), virtualFiles);
-		List<String> allErrors = new PigSemanticAnalyzer().analyze(programTree, importResult);
+		List<PigSemanticError> allErrors = new PigSemanticAnalyzer().analyze(programTree, importResult);
 
 		if (allErrors.isEmpty()) {
 			System.out.println("(no errors)");
 		} else {
-			for (String error : allErrors) {
+			for (PigSemanticError error : allErrors) {
 				System.out.println(error);
 			}
 		}

@@ -23,6 +23,9 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private static final String MSG_MALFORMED_REQUEST = "Malformed or unreadable request body";
+    private static final String MSG_INTERNAL_ERROR = "Internal compiler error while analyzing the source";
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.OK)
     public ValidateResponse handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
@@ -30,7 +33,7 @@ public class GlobalExceptionHandler {
         CompilerError error = new CompilerError(
                 1,
                 0,
-                "Malformed or unreadable request body: " + ex.getMessage(),
+                MSG_MALFORMED_REQUEST,
                 ErrorPhase.SYNTACTIC
         );
         return new ValidateResponse(false, List.of(error));
@@ -43,9 +46,8 @@ public class GlobalExceptionHandler {
 
         int line = extractIntProperty(ex, "getLine", 1);
         int column = extractIntProperty(ex, "getColumn", 0);
-        String message = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
 
-        CompilerError error = new CompilerError(line, column, message, ErrorPhase.SEMANTIC);
+        CompilerError error = new CompilerError(line, column, MSG_INTERNAL_ERROR, ErrorPhase.SEMANTIC);
         return new ValidateResponse(false, List.of(error));
     }
 

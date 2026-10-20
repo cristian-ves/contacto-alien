@@ -50,17 +50,17 @@ primitiveType
     ;
 
 statement
-    : variableDeclaration NEWLINE   # variableDeclarationStatement
-    | ifStatement                   # ifStmt
-    | switchStatement               # switchStmt
-    | forStatement                  # forStmt
-    | whileStatement                # whileStmt
-    | doWhileStatement              # doWhileStmt
-    | RETORNAR expression? NEWLINE  # returnStatement
-    | ROMPER NEWLINE                # breakStatement
-    | CONTINUAR NEWLINE             # continueStatement
-    | structDeclaration             # nestedStructStatement
-    | expression NEWLINE            # expressionStatement
+    : variableDeclaration SEMI? NEWLINE   # variableDeclarationStatement
+    | ifStatement                         # ifStmt
+    | switchStatement                     # switchStmt
+    | forStatement                        # forStmt
+    | whileStatement                      # whileStmt
+    | doWhileStatement                    # doWhileStmt
+    | RETORNAR expression? SEMI? NEWLINE  # returnStatement
+    | ROMPER SEMI? NEWLINE                # breakStatement
+    | CONTINUAR SEMI? NEWLINE             # continueStatement
+    | structDeclaration                   # nestedStructStatement
+    | expression SEMI? NEWLINE            # expressionStatement
     ;
 
 variableDeclaration

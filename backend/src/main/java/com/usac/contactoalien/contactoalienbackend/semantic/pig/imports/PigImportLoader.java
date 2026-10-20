@@ -9,6 +9,7 @@ import com.usac.contactoalien.contactoalienbackend.grammar.y.YParserBaseVisitor;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.errors.PigSemanticError;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.ClassSymbolTable;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.analysis.YSemanticAnalyzer;
@@ -28,7 +29,7 @@ import java.util.Map;
 public final class PigImportLoader {
 
     public PigImportResult load(List<PigParser.ImportDeclContext> imports, Map<String, String> virtualFiles) {
-        List<String> errors = new ArrayList<>();
+        List<PigSemanticError> errors = new ArrayList<>();
         CompilationUnitRegistry classRegistry = new CompilationUnitRegistry();
         ImportedYSymbols ySymbols = new ImportedYSymbols();
         List<PendingZetariano> pendingClasses = new ArrayList<>();
@@ -37,7 +38,7 @@ public final class PigImportLoader {
             ImportPathResolver.ResolvedImport resolved = ImportPathResolver.resolve(importCtx);
             String content = virtualFiles.get(resolved.getVirtualPath());
             if (content == null) {
-                errors.add("imported file not found: " + resolved.getVirtualPath());
+                errors.add(new PigSemanticError("imported file not found: " + resolved.getVirtualPath(), 1, 0));
                 continue;
             }
             if (resolved.getLanguage() == ImportPathResolver.Language.Z) {
@@ -51,7 +52,7 @@ public final class PigImportLoader {
         for (PendingZetariano pending : pendingClasses) {
             pending.analyzer.analyzeBodies(pending.classTree, pending.classTable, classRegistry);
             for (SemanticError e : pending.analyzer.getErrors().getErrors()) {
-                errors.add("[" + pending.fileLabel + "] " + e.getMessage());
+                errors.add(new PigSemanticError("[" + pending.fileLabel + "] " + e.getMessage(), e.getLine(), e.getColumn()));
             }
         }
 
@@ -60,25 +61,25 @@ public final class PigImportLoader {
 
     private void loadZetarianoImport(ImportPathResolver.ResolvedImport resolved, String content,
                                      CompilationUnitRegistry classRegistry,
-                                     List<PendingZetariano> pendingClasses, List<String> errors) {
+                                     List<PendingZetariano> pendingClasses, List<PigSemanticError> errors) {
         ParseOutcome<ZetarianoParser.ClassDeclarationContext> outcome = SourceParser.parseZetariano(content);
         if (outcome.hasErrors()) {
             for (CompilerError e : outcome.errors()) {
-                errors.add("[" + resolved.getVirtualPath() + ":" + e.line() + ":" + e.column() + "] " + e.message());
+                errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.message(), e.line(), e.column()));
             }
             return;
         }
 
         ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
         if (classTree == null || classTree.IDENTIFIER() == null) {
-            errors.add("[" + resolved.getVirtualPath() + "] could not parse class declaration");
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] could not parse class declaration", 1, 0));
             return;
         }
 
         String actualClassName = classTree.IDENTIFIER().getText();
         if (!actualClassName.equals(resolved.getExpectedModuleName())) {
-            errors.add("[" + resolved.getVirtualPath() + "] class name '" + actualClassName
-                    + "' does not match expected module name '" + resolved.getExpectedModuleName() + "'");
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] class name '" + actualClassName
+                    + "' does not match expected module name '" + resolved.getExpectedModuleName() + "'", 1, 0));
         }
 
         SemanticAnalyzer analyzer = new SemanticAnalyzer();
@@ -89,18 +90,18 @@ public final class PigImportLoader {
     }
 
     private void loadYImport(ImportPathResolver.ResolvedImport resolved, String content,
-                             ImportedYSymbols ySymbols, List<String> errors) {
+                             ImportedYSymbols ySymbols, List<PigSemanticError> errors) {
         ParseOutcome<YParser.ProgramContext> outcome = SourceParser.parseY(content);
         if (outcome.hasErrors()) {
             for (CompilerError e : outcome.errors()) {
-                errors.add("[" + resolved.getVirtualPath() + ":" + e.line() + ":" + e.column() + "] " + e.message());
+                errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.message(), e.line(), e.column()));
             }
             return;
         }
 
         YParser.ProgramContext programTree = outcome.tree();
         if (programTree == null) {
-            errors.add("[" + resolved.getVirtualPath() + "] could not parse Y program");
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] could not parse Y program", 1, 0));
             return;
         }
 
@@ -118,10 +119,10 @@ public final class PigImportLoader {
         List<String> collisions = ySymbols.addFrom(analyzer.getStructRegistry(), structNames,
                 analyzer.getFunctionRegistry(), functionNames);
         for (String collision : collisions) {
-            errors.add("[" + resolved.getVirtualPath() + "] " + collision);
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + collision, 1, 0));
         }
         for (YSemanticError e : analyzer.getErrors().getErrors()) {
-            errors.add("[" + resolved.getVirtualPath() + "] " + e.getMessage());
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.getMessage(), e.getLine(), e.getColumn()));
         }
     }
 

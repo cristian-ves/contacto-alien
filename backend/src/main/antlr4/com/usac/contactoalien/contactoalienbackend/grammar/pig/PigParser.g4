@@ -32,6 +32,7 @@ tipoBasico
     | TEXTUM
     | DECIMALIS
     | LITTERA
+    | BOOL
     ;
 
 arrayDecl
@@ -145,7 +146,7 @@ multiplicativeExpr
     ;
 
 unaryExpr
-    : (NOT | MINUS | PLUS) unaryExpr
+    : (NOT | NON | MINUS | PLUS) unaryExpr
     | postfixExpression
     ;
 
@@ -157,6 +158,8 @@ postfixOp
     : DOT IDENTIFIER
     | LBRACK expression RBRACK
     | LPAREN argumentList? RPAREN
+    | INC
+    | DEC
     ;
 
 primaryExpression

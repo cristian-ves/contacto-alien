@@ -14,6 +14,7 @@ final class PigTypeMapper {
         if (ctx.DECIMALIS() != null) return PigType.DECIMALIS;
         if (ctx.TEXTUM() != null) return PigType.TEXTUM;
         if (ctx.LITTERA() != null) return PigType.LITTERA;
+        if (ctx.BOOL() != null) return PigType.BOOL;
         return PigType.UNKNOWN;
     }
 }

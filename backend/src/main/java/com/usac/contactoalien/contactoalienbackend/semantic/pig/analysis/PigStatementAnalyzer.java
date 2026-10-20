@@ -8,6 +8,7 @@ import com.usac.contactoalien.contactoalienbackend.semantic.pig.symbols.PigVaria
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.types.PigType;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.types.PigTypeCompatibility;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.List;
 
@@ -21,8 +22,9 @@ import java.util.List;
 // ifStatement has several statement* blocks (the 'si' block, plus one per 'aliter'), each with
 // its own optional condition; the auto-generated flat accessors would merge every block's
 // statements and every aliter's condition into single lists that lose the block boundaries, so
-// analyzeIf/analyzeFor walk the raw child sequence instead, using expectText as a fail-fast
-// sanity check on the shape the grammar guarantees once parsing has already succeeded.
+// analyzeIf walks the raw child sequence instead, using expectText as a fail-fast sanity check
+// on the shape the grammar guarantees once parsing has already succeeded. forStatement uses typed
+// accessors and compares expression token positions against semicolons.
 public final class PigStatementAnalyzer {
 
     private final PigImportResult importResult;
@@ -141,30 +143,33 @@ public final class PigStatementAnalyzer {
     }
 
     private void analyzeFor(PigParser.ForStatementContext ctx) {
-        int i = 0;
-        i = expectText(ctx, i, "per");
-        i = expectText(ctx, i, "(");
+        symbolTable.enterScope();
+        try {
+            if (ctx.forInit() != null) {
+                analyzeForInit(ctx.forInit());
+            }
 
-        if (!ctx.getChild(i).getText().equals(";")) {
-            analyzeForInit((PigParser.ForInitContext) ctx.getChild(i));
-            i++;
-        }
-        i = expectText(ctx, i, ";");
+            List<TerminalNode> semis = ctx.SEMI();
+            if (semis.size() >= 2) {
+                int firstSemiIndex = semis.get(0).getSymbol().getTokenIndex();
+                int secondSemiIndex = semis.get(1).getSymbol().getTokenIndex();
 
-        if (!ctx.getChild(i).getText().equals(";")) {
-            checkConditionIsBool((PigParser.ExpressionContext) ctx.getChild(i), ctx);
-            i++;
-        }
-        i = expectText(ctx, i, ";");
+                for (PigParser.ExpressionContext expr : ctx.expression()) {
+                    int exprStartIndex = expr.getStart().getTokenIndex();
+                    if (exprStartIndex > firstSemiIndex && exprStartIndex < secondSemiIndex) {
+                        checkConditionIsBool(expr, ctx);
+                    } else if (exprStartIndex > secondSemiIndex) {
+                        expressionResolver.resolve(expr);
+                    }
+                }
+            }
 
-        if (!ctx.getChild(i).getText().equals(")")) {
-            expressionResolver.resolve((PigParser.ExpressionContext) ctx.getChild(i));
-            i++;
+            for (PigParser.StatementContext stmt : ctx.statement()) {
+                analyzeStatement(stmt);
+            }
+        } finally {
+            symbolTable.exitScope();
         }
-        i = expectText(ctx, i, ")");
-        i = expectText(ctx, i, "{");
-        analyzeStatementBlockFrom(ctx, i);
-        // trailing RBRACE not consumed further; nothing left to validate.
     }
 
     private void analyzeForInit(PigParser.ForInitContext ctx) {

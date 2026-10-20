@@ -16,6 +16,7 @@ import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationU
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.analysis.PigSemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.imports.PigImportLoader;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.imports.PigImportResult;
+import com.usac.contactoalien.contactoalienbackend.semantic.pig.errors.PigSemanticError;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.analysis.YSemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.errors.YSemanticError;
 import org.antlr.v4.runtime.CharStreams;
@@ -83,10 +84,6 @@ public class ValidatorService {
         return errors;
     }
 
-    // Pig Latin's import errors and body-analysis errors already come back as pre-formatted,
-    // file-prefixed strings without reliably separable line/column info, so they are wrapped as
-    // SEMANTIC CompilerErrors at (0, 0). Only genuine lexical/syntactic errors from the main
-    // .pig file itself carry real position info.
     private List<CompilerError> validatePig(String code, Map<String, String> imports) {
         Map<String, String> virtualFiles = imports != null ? imports : Collections.emptyMap();
 
@@ -101,18 +98,19 @@ public class ValidatorService {
         parser.removeErrorListeners();
         parser.addErrorListener(syntaxListener);
 
+        PigParser.ProgramContext programTree = parser.program();
+
         List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
         errors.addAll(syntaxListener.getErrors());
         if (!errors.isEmpty()) {
             return errors;
         }
 
-        PigParser.ProgramContext programTree = parser.program();
         PigImportResult importResult = new PigImportLoader().load(programTree.importDecl(), virtualFiles);
-        List<String> semanticMessages = new PigSemanticAnalyzer().analyze(programTree, importResult);
+        List<PigSemanticError> semanticErrors = new PigSemanticAnalyzer().analyze(programTree, importResult);
 
-        for (String message : semanticMessages) {
-            errors.add(new CompilerError(0, 0, message, ErrorPhase.SEMANTIC));
+        for (PigSemanticError e : semanticErrors) {
+            errors.add(new CompilerError(e.getLine(), e.getColumn(), e.getMessage(), ErrorPhase.SEMANTIC));
         }
         return errors;
     }

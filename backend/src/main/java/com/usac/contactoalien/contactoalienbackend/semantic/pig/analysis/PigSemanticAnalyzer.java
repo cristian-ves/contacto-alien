@@ -14,7 +14,7 @@ import java.util.List;
 // (already file-prefixed), followed by the body's own errors, each with its own line/column.
 public final class PigSemanticAnalyzer {
 
-    public List<String> analyze(PigParser.ProgramContext program, PigImportResult importResult) {
+    public List<PigSemanticError> analyze(PigParser.ProgramContext program, PigImportResult importResult) {
         PigErrorReporter reporter = new PigErrorReporter();
         PigSymbolTable symbolTable = new PigSymbolTable();
         PigExpressionTypeResolver expressionResolver = new PigExpressionTypeResolver(importResult, symbolTable, reporter);
@@ -22,10 +22,8 @@ public final class PigSemanticAnalyzer {
         new PigVariablesAnalyzer(importResult, symbolTable, reporter, expressionResolver).analyze(program.variabilesSection());
         new PigStatementAnalyzer(importResult, symbolTable, reporter, expressionResolver).analyze(program.maiorSection());
 
-        List<String> combined = new ArrayList<>(importResult.getErrors());
-        for (PigSemanticError error : reporter.getErrors()) {
-            combined.add(error.toString());
-        }
+        List<PigSemanticError> combined = new ArrayList<>(importResult.getErrors());
+        combined.addAll(reporter.getErrors());
         return combined;
     }
 }
