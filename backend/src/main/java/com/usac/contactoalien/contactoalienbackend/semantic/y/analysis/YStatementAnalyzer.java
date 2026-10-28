@@ -1,11 +1,13 @@
 package com.usac.contactoalien.contactoalienbackend.semantic.y.analysis;
 
+import com.usac.contactoalien.contactoalienbackend.semantic.types.IntegerLiterals;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser.*;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParserBaseVisitor;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.errors.YErrorReporter;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.symbols.YFunctionRegistry;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.symbols.YScope;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.symbols.YStructRegistry;
+import com.usac.contactoalien.contactoalienbackend.semantic.y.symbols.YStructSymbol;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.symbols.YVariableSymbol;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.types.YType;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.types.YTypeCompatibility;
@@ -23,10 +25,14 @@ public final class YStatementAnalyzer extends YParserBaseVisitor<Void> {
     private final YExpressionTypeResolver expressionResolver;
     private YScope currentScope;
     private YType currentReturnType;
+    private final YCollectionRules collections;
+    private int loopDepth;
+    private int switchDepth;
 
     public YStatementAnalyzer(YStructRegistry structRegistry, YFunctionRegistry functionRegistry, YErrorReporter errors) {
         this.structRegistry = structRegistry;
         this.errors = errors;
+        this.collections = new YCollectionRules(errors);
         this.expressionResolver = new YExpressionTypeResolver(structRegistry, functionRegistry, errors);
     }
 
@@ -47,12 +53,29 @@ public final class YStatementAnalyzer extends YParserBaseVisitor<Void> {
 
     private void declareVariable(VariableDeclarationContext ctx) {
         YType base = YTypeResolver.resolve(ctx.type(), structRegistry, errors);
-        YType type = ctx.LBRACK() != null ? base.asArray(1) : base;
+        int dimensions = ctx.LBRACK().size();
+        YType type = dimensions == 0 ? base : base.asArray(dimensions);
         String name = ctx.IDENTIFIER().getText();
-        if (!currentScope.declare(new YVariableSymbol(name, type))) {
+        int length = dimensions == 1 ? IntegerLiterals.length(ctx.INT_LITERAL(0).getText()) : -1;
+        if (!currentScope.declare(new YVariableSymbol(name, type, length))) {
             errors.report("Variable '" + name + "' is already declared in this scope", ctx);
         }
-        if (ctx.ASSIGN() != null) {
+        collections.checkLength(ctx);
+        PrimaryContext list = ctx.ASSIGN() == null ? null : YPlaceRules.descend(ctx.expression(), PrimaryContext.class);
+        if (dimensions > 1 && ctx.ASSIGN() != null) {
+            errors.report("Array '" + name + "' has more than one dimension and cannot be initialized with a list", ctx);
+        } else if (dimensions == 1 && list != null && list.LBRACE() != null) {
+            expressionResolver.setScope(currentScope);
+            List<YType> values = list.expression().stream().map(expressionResolver::resolve).toList();
+            collections.checkInitializer(ctx, base, values);
+        } else if (list != null && list.LBRACE() != null && base.getKind() == YType.Kind.STRUCT && !type.isArray()) {
+            expressionResolver.setScope(currentScope);
+            List<YType> values = list.expression().stream().map(expressionResolver::resolve).toList();
+            YStructSymbol struct = structRegistry.resolve(base.getStructName());
+            if (struct != null) {
+                collections.checkStructList(struct, values, ctx);
+            }
+        } else if (ctx.ASSIGN() != null) {
             expressionResolver.setScope(currentScope);
             YType valueType = expressionResolver.resolve(ctx.expression());
             if (!YTypeCompatibility.isAssignable(type, valueType)) {
@@ -97,13 +120,17 @@ public final class YStatementAnalyzer extends YParserBaseVisitor<Void> {
     @Override
     public Void visitWhileStatement(WhileStatementContext ctx) {
         checkCondition(ctx.expression(), "mientras");
+        loopDepth++;
         visitStatementsInNewScope(ctx.statement());
+        loopDepth--;
         return null;
     }
 
     @Override
     public Void visitDoWhileStatement(DoWhileStatementContext ctx) {
+        loopDepth++;
         visitStatementsInNewScope(ctx.statement());
+        loopDepth--;
         checkCondition(ctx.expression(), "hacer-mientras");
         return null;
     }
@@ -119,7 +146,9 @@ public final class YStatementAnalyzer extends YParserBaseVisitor<Void> {
             expressionResolver.setScope(currentScope);
             expressionResolver.resolve(ctx.forUpdate().expression());
         }
+        loopDepth++;
         for (StatementContext s : ctx.statement()) visit(s);
+        loopDepth--;
         currentScope = saved;
         return null;
     }
@@ -145,14 +174,34 @@ public final class YStatementAnalyzer extends YParserBaseVisitor<Void> {
     @Override
     public Void visitSwitchStatement(SwitchStatementContext ctx) {
         expressionResolver.setScope(currentScope);
-        expressionResolver.resolve(ctx.expression());
+        YType subject = expressionResolver.resolve(ctx.expression());
+        YSwitchRules rules = new YSwitchRules(errors);
+        rules.checkSubject(subject, ctx.expression());
+        switchDepth++;
         for (CaseClauseContext c : ctx.caseClause()) {
             expressionResolver.setScope(currentScope);
-            expressionResolver.resolve(c.expression());
+            rules.checkCase(subject, expressionResolver.resolve(c.expression()), c.expression());
             visitStatementsInNewScope(c.statement());
         }
         if (ctx.defaultClause() != null) {
             visitStatementsInNewScope(ctx.defaultClause().statement());
+        }
+        switchDepth--;
+        return null;
+    }
+
+    @Override
+    public Void visitBreakStatement(BreakStatementContext ctx) {
+        if (loopDepth + switchDepth == 0) {
+            errors.report("'romper' can only be used inside a loop or an 'elegir'", ctx);
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitContinueStatement(ContinueStatementContext ctx) {
+        if (loopDepth == 0) {
+            errors.report("'continuar' can only be used inside a loop", ctx);
         }
         return null;
     }

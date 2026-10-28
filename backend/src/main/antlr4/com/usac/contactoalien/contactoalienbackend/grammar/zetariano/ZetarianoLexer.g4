@@ -2,6 +2,10 @@ lexer grammar ZetarianoLexer;
 
 PUBLIC    : 'public';
 PRIVATE   : 'private';
+PROTECTED : 'protected';
+EXTENDS   : 'extends';
+SUPER     : 'super';
+OVERRIDE  : '@Override';
 CLASS     : 'class';
 INT       : 'int';
 DOUBLE    : 'double';
@@ -71,11 +75,18 @@ CHAR_LITERAL
     ;
 
 STRING_LITERAL
-    : '"' (ESCAPE_SEQUENCE | ~["\\])* '"'
+    : '"' (ESCAPE_SEQUENCE | ~["\\\r\n])* '"'
+    ;
+
+// An unterminated string is reported once and kept as a string token, so the parser does not cascade.
+UNCLOSED_STRING
+    : '"' (ESCAPE_SEQUENCE | ~["\\\r\n])*
+      { notifyListeners(new org.antlr.v4.runtime.LexerNoViableAltException(this, _input, _tokenStartCharIndex, null)); }
+      -> type(STRING_LITERAL)
     ;
 
 fragment ESCAPE_SEQUENCE
-    : '\\' ('"' | 'n' | '\\')
+    : '\\' ('"' | '\'' | 'n' | 't' | 'r' | '\\')
     ;
 
 IDENTIFIER : [a-zA-Z_][a-zA-Z0-9_]*;
@@ -83,4 +94,13 @@ IDENTIFIER : [a-zA-Z_][a-zA-Z0-9_]*;
 LINE_COMMENT  : '//' ~[\r\n]* -> channel(HIDDEN);
 BLOCK_COMMENT : '/*' .*? '*/' -> channel(HIDDEN);
 
-WS : [ \t\r\n]+ -> skip;
+// A block comment that never closes is reported as one lexical error and skipped, instead of
+// leaving a stray '/' for the parser to complain about.
+UNCLOSED_COMMENT
+    : '/*' ( ~'*' | '*'+ ~[*/] )* '*'*
+      { notifyListeners(new org.antlr.v4.runtime.LexerNoViableAltException(this, _input, _tokenStartCharIndex, null)); }
+      -> skip
+    ;
+
+// \uFEFF is the byte order mark some editors put at the start of a UTF-8 file.
+WS : [ \t\r\n\uFEFF]+ -> skip;

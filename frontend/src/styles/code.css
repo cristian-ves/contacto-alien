@@ -1,0 +1,159 @@
+/* Code surfaces: editor, console, quadruples and assembly are the only places that use the code font. */
+.editor { flex: 1; min-height: 0; min-width: 0; overflow: auto; background: var(--editor); }
+.code {
+  position: relative;
+  min-width: max-content;
+  min-height: 100%;
+  padding: 8px 0;
+  font: 400 13.5px/23px var(--code);
+  font-feature-settings: 'liga' 0, 'calt' 0;
+  font-variant-ligatures: none;
+}
+.code .l { display: flex; height: 23px; padding-right: 24px; }
+.code .n { width: 52px; flex: none; text-align: right; padding-right: 16px; color: var(--gutter); user-select: none; font-variant-numeric: tabular-nums; }
+.code .tx { white-space: pre; color: var(--code-text); }
+.code .l.cur { background: rgba(148, 163, 184, 0.07); }
+.code .l.cur .n { color: var(--soft); }
+.code .l.err { background: rgba(248, 113, 113, 0.08); box-shadow: inset 2px 0 0 var(--red); }
+.code .l.err .n { color: var(--red); }
+
+.code textarea {
+  position: absolute;
+  inset: 0 0 0 52px;
+  width: calc(100% - 52px);
+  height: 100%;
+  margin: 0;
+  padding: 8px 24px 8px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  font: inherit;
+  font-feature-settings: inherit;
+  font-variant-ligatures: none;
+  tab-size: 4;
+}
+.code textarea::selection { background: rgba(96, 165, 250, 0.35); color: transparent; }
+
+/* Syntax categories: the class comes from the token type the backend reported. */
+.tok-kw { color: var(--violet); }
+.tok-mod { color: var(--violet-soft); }
+.tok-an { color: var(--violet-soft); font-style: italic; }
+.tok-str { color: var(--green); }
+.tok-num { color: var(--orange); }
+.tok-cm { color: var(--faint); font-style: italic; }
+.tok-fn { color: var(--blue); }
+.tok-ty { color: var(--teal); }
+.tok-op { color: var(--muted); }
+.tok-sq { text-decoration: underline wavy var(--red); text-decoration-skip-ink: none; text-underline-offset: 4px; }
+
+/* Read-only listings (quadruples, assembly) reuse the editor line layout without the textarea */
+.code.listing { min-height: 0; padding: 6px 0; }
+.code.listing:focus-visible { outline: none; box-shadow: inset var(--focus); }
+.listing .tx.tx-label { color: var(--violet); }
+.listing .tx.tx-dir { color: var(--blue); }
+.listing .tx.tx-comment { color: var(--faint); font-style: normal; }
+
+/* Console */
+.console-bar { position: sticky; top: 0; z-index: 1; background: var(--bg); border-bottom: 1px solid var(--line); }
+.console-bar-row { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 8px; }
+.console-bar .sp { flex: 1; }
+.console-fold { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border: 0; border-radius: 4px; background: none; color: var(--muted); font: 500 13px/1.4 var(--ui); cursor: pointer; }
+.console-fold:hover { color: var(--text); }
+.console-fold:focus-visible { outline: none; box-shadow: var(--focus); }
+.console-fold svg { transition: transform 0.12s; }
+.console-fold svg.turned { transform: rotate(90deg); }
+.preloaded { padding: 4px 14px 10px; }
+.preloaded textarea { width: 100%; box-sizing: border-box; resize: vertical; font: 400 13px/1.4 var(--code); font-variant-ligatures: none; }
+.fold-count { color: var(--dim); font-size: 12.5px; }
+.preloaded .hint { margin: 6px 0 0; color: var(--dim); font-size: 13px; }
+.console { font: 400 13px/1.75 var(--code); font-feature-settings: 'liga' 0, 'calt' 0; font-variant-ligatures: none; padding: 6px 0; }
+.cl { display: flex; gap: 14px; padding: 0 16px; }
+.cl:hover { background: var(--panel); }
+.cl .ts { color: var(--dim); flex: none; min-width: 8ch; }
+.cl .src { width: 56px; flex: none; color: var(--dim); }
+.cl .msg { white-space: pre-wrap; color: var(--dim); min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.cl .msg.with-input { display: flex; }
+.cl .msg .text { white-space: pre-wrap; }
+.cl.out .msg { color: var(--text); }
+.cl.out .src { color: var(--soft); }
+.cl.err .msg, .cl.err .src { color: var(--orange); }
+.cl.error .msg, .cl.error .src { color: var(--red); }
+.cl.done .msg { color: var(--green); }
+.cl .echo, .cl.in .msg, .cl.in .src { color: var(--blue); }
+.console-input { flex: 1; min-width: 8ch; padding: 1px 10px; margin: 2px 0; border: 1px solid var(--line); border-radius: 4px; outline: none; background: var(--panel); color: var(--blue); caret-color: var(--green); font: inherit; font-variant-ligatures: none; }
+.console-input:focus { border-color: var(--green); box-shadow: var(--focus); }
+.console-input::placeholder { color: var(--dim); }
+
+/* Error list */
+.errs { list-style: none; margin: 0; padding: 0; }
+.er {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 16px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--panel);
+  color: var(--text);
+  font: 400 14px/1.4 var(--ui);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.er:hover { background: var(--panel); }
+.er:focus-visible { outline: none; box-shadow: inset var(--focus); }
+.er[aria-selected='true'] { background: var(--panel); box-shadow: inset 2px 0 0 var(--red); }
+.er .loc { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Quadruples and assembly panes: own coloring (.lx-*), toolbar, optional side-by-side layout */
+.pbody.listing-body { overflow: hidden; display: flex; }
+.lpanes { flex: 1; min-width: 0; min-height: 0; display: flex; }
+.lpane { container-type: inline-size; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.lpanes.split .lpane + .lpane { border-left: 1px solid var(--line); }
+.lscroll { flex: 1; min-height: 0; overflow: auto; }
+.lscroll:focus-visible { outline: none; box-shadow: inset var(--focus); }
+.lpane .panel-empty { flex: 1; }
+.lbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 38px; flex: none; padding: 3px 6px 3px 16px; border-bottom: 1px solid var(--panel); }
+.lbar .sp { flex: 1; }
+.lbar-extra, .lbar-btns { display: flex; align-items: center; gap: 8px; }
+.lbar-btns { gap: 0; flex: none; }
+.lbar-title { font: 600 13px var(--ui); color: var(--soft); }
+.lbar-detail { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.asm-jump { flex: 0 1 210px; min-width: 150px; }
+@container (max-width: 560px) {
+  .lbar-detail { display: none; }
+  /* Narrow pane (split view): the controls drop to their own row and the buttons stay beside the title. */
+  .lbar-extra { order: 3; flex: 1 0 100%; }
+  .lbar-btns { order: 2; }
+}
+.asm-jump .MuiInputBase-root { font-size: 13px; padding-top: 0; padding-bottom: 0; }
+.asm-switch { margin: 0 4px 0 8px; }
+.asm-switch .MuiFormControlLabel-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.ptabs .MuiIconButton-root.on { color: var(--green); }
+.listing .l { content-visibility: auto; contain-intrinsic-size: auto 23px; }
+.listing .l.pick { cursor: pointer; }
+.listing .l.pick:hover { background: var(--panel); }
+.listing .l.sel { background: var(--green-bg); box-shadow: inset 2px 0 0 var(--green); }
+.listing .l.sel .n { color: var(--green); }
+.listing .gap-row .tx { color: var(--faint); font-style: italic; }
+.lx-comment { color: var(--faint); font-style: italic; }
+.lx-label { color: var(--violet); }
+.lx-dir { color: var(--blue); }
+.lx-ins { color: var(--text); font-weight: 500; }
+.lx-reg { color: var(--teal); }
+.lx-imm, .lx-num { color: var(--orange); }
+.lx-sym, .lx-fn { color: var(--blue); }
+.lx-str { color: var(--green); }
+.lx-kw { color: var(--violet); }
+.lx-tmp { color: var(--teal); }
+.lx-glob { color: var(--violet-soft); }
+.lx-type { color: var(--blue); }
+.lx-op, .lx-punct { color: var(--muted); }
+.lx-name { color: var(--code-text); }

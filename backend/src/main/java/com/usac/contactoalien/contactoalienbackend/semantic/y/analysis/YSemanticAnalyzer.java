@@ -46,5 +46,6 @@ public final class YSemanticAnalyzer {
             }
         }
         new YStatementAnalyzer(structRegistry, functionRegistry, errors).analyzeBody(ctx.statement(), parameterScope, returnType);
+        new YReturnFlowChecker(errors).check(ctx, returnType.getKind() != YType.Kind.VOID && !returnType.isUnknown());
     }
 }

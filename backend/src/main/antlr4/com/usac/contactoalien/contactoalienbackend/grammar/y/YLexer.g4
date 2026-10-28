@@ -49,7 +49,14 @@ CHAR_LITERAL
     ;
 
 STRING_LITERAL
-    : '"' (ESCAPE_SEQ | ~["\\])* '"'
+    : '"' (ESCAPE_SEQ | ~["\\\r\n])* '"'
+    ;
+
+// An unterminated string is reported once and kept as a string token, so the parser does not cascade.
+UNCLOSED_STRING
+    : '"' (ESCAPE_SEQ | ~["\\\r\n])*
+      { notifyListeners(new org.antlr.v4.runtime.LexerNoViableAltException(this, _input, _tokenStartCharIndex, null)); }
+      -> type(STRING_LITERAL)
     ;
 
 IDENTIFIER
@@ -60,6 +67,7 @@ PLUS   : '+';
 MINUS  : '-';
 STAR   : '*';
 DIV    : '/';
+MOD    : '%';
 EQ     : '==';
 NEQ    : '!=';
 LT     : '<';
@@ -87,9 +95,18 @@ SEMI   : ';';
 LINE_COMMENT  : '//' ~[\r\n]*  -> channel(HIDDEN);
 BLOCK_COMMENT : '/*' .*? '*/'  -> channel(HIDDEN);
 
-NEWLINE : ('\r'? '\n' | '\r') ' '*;
+// A block comment that never closes is reported as one lexical error and skipped, instead of
+// leaving a stray '/' for the parser to complain about.
+UNCLOSED_COMMENT
+    : '/*' ( ~'*' | '*'+ ~[*/] )* '*'*
+      { notifyListeners(new org.antlr.v4.runtime.LexerNoViableAltException(this, _input, _tokenStartCharIndex, null)); }
+      -> skip
+    ;
 
-WS : [ \t]+ -> skip;
+NEWLINE : ('\r'? '\n' | '\r') [ \t]*;
+
+// \uFEFF is the byte order mark some editors put at the start of a UTF-8 file.
+WS : [ \t\uFEFF]+ -> skip;
 
 fragment DIGIT      : [0-9];
-fragment ESCAPE_SEQ : '\\' ('"' | 'n' | '\\');
+fragment ESCAPE_SEQ : '\\' ('"' | '\'' | 'n' | 't' | 'r' | '\\');

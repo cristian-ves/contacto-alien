@@ -21,4 +21,16 @@ public final class CompilationUnitRegistry {
     public ClassSymbolTable resolve(String className) {
         return classesByName.get(className);
     }
+
+    // True when sub is the same class as sup or inherits from it, directly or through other classes.
+    // The walk stops after as many steps as there are classes, so a cyclic declaration cannot loop.
+    public boolean isSubclass(String sub, String sup) {
+        String current = sub;
+        for (int steps = 0; current != null && steps <= classesByName.size(); steps++) {
+            if (current.equals(sup)) return true;
+            ClassSymbolTable table = classesByName.get(current);
+            current = table == null ? null : table.getSuperName();
+        }
+        return false;
+    }
 }

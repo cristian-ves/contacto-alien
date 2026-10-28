@@ -36,7 +36,7 @@ parameterList
 
 parameter
     : type IDENTIFIER                          # scalarParameter
-    | LBRACK RBRACK type IDENTIFIER            # arrayParameter
+    | (LBRACK RBRACK)+ type IDENTIFIER         # arrayParameter
     | LBRACE RBRACE IDENTIFIER IDENTIFIER      # structParameter
     ;
 
@@ -64,7 +64,7 @@ statement
     ;
 
 variableDeclaration
-    : type IDENTIFIER (LBRACK INT_LITERAL RBRACK)? (ASSIGN expression)?
+    : type IDENTIFIER (LBRACK INT_LITERAL RBRACK)* (ASSIGN expression)?
     ;
 
 ifStatement
@@ -147,7 +147,7 @@ additive
     ;
 
 multiplicative
-    : unary ((STAR | DIV) unary)*
+    : unary ((STAR | DIV | MOD) unary)*
     ;
 
 unary

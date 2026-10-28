@@ -32,6 +32,11 @@ public final class YType {
         return new YType(this.kind, this.structName, this.arrayDimensions + extraDimensions);
     }
 
+    // The type of one element: the same type with one dimension fewer.
+    public YType elementType() {
+        return new YType(this.kind, this.structName, Math.max(0, this.arrayDimensions - 1));
+    }
+
     public Kind getKind() { return kind; }
     public String getStructName() { return structName; }
     public int getArrayDimensions() { return arrayDimensions; }

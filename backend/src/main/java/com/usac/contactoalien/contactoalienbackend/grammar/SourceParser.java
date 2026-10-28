@@ -3,6 +3,8 @@ package com.usac.contactoalien.contactoalienbackend.grammar;
 import com.usac.contactoalien.contactoalienbackend.errors.CollectingErrorListener;
 import com.usac.contactoalien.contactoalienbackend.errors.CompilerError;
 import com.usac.contactoalien.contactoalienbackend.errors.ErrorPhase;
+import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigLexer;
+import com.usac.contactoalien.contactoalienbackend.grammar.pig.PigParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YLexer;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoLexer;
@@ -22,6 +24,32 @@ public final class SourceParser {
 
     private SourceParser() {
         // Utility class
+    }
+
+    /**
+    Parses a Pig Latin source string into a {@link PigParser.ProgramContext} parse tree.
+
+    @param code The Pig Latin source code.
+    @return A {@link ParseOutcome} containing the parse tree and any lexical/syntactic errors.
+    */
+    public static ParseOutcome<PigParser.ProgramContext> parsePig(String code) {
+        CollectingErrorListener lexicalListener = new CollectingErrorListener(ErrorPhase.LEXICAL);
+        PigLexer lexer = new PigLexer(CharStreams.fromString(code));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(lexicalListener);
+
+        CollectingErrorListener syntaxListener = new CollectingErrorListener(ErrorPhase.SYNTACTIC);
+        CommonTokenStream tokens = new CommonTokenStream(lexer);
+        PigParser parser = new PigParser(tokens);
+        parser.removeErrorListeners();
+        parser.addErrorListener(syntaxListener);
+
+        PigParser.ProgramContext tree = parser.program();
+
+        List<CompilerError> errors = new ArrayList<>(lexicalListener.getErrors());
+        errors.addAll(syntaxListener.getErrors());
+
+        return new ParseOutcome<>(tree, Collections.unmodifiableList(errors));
     }
 
     /**

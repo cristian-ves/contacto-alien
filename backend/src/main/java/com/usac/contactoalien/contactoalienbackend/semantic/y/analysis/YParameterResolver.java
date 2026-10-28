@@ -17,7 +17,7 @@ public final class YParameterResolver {
             return YTypeResolver.resolve(scalar.type(), registry, errors);
         }
         if (ctx instanceof YParser.ArrayParameterContext array) {
-            return YTypeResolver.resolve(array.type(), registry, errors).asArray(1);
+            return YTypeResolver.resolve(array.type(), registry, errors).asArray(array.LBRACK().size());
         }
         YParser.StructParameterContext struct = (YParser.StructParameterContext) ctx;
         String structName = struct.IDENTIFIER(0).getText();

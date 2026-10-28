@@ -17,10 +17,11 @@ public final class YTypeCompatibility {
                     && Objects.equals(target.getStructName(), source.getStructName());
         }
         return switch (target.getKind()) {
-            // entero only accepts entero; no implicit narrowing from flotante
-            case ENTERO -> source.getKind() == YType.Kind.ENTERO;
-            // flotante accepts flotante or entero (widening, same rule as Java)
-            case FLOTANTE -> source.getKind() == YType.Kind.FLOTANTE || source.getKind() == YType.Kind.ENTERO;
+            // entero accepts entero or caracter (widening through its code); no implicit narrowing from flotante
+            case ENTERO -> source.getKind() == YType.Kind.ENTERO || source.getKind() == YType.Kind.CARACTER;
+            // flotante accepts flotante, entero or caracter (widening, same rule as Java)
+            case FLOTANTE -> source.getKind() == YType.Kind.FLOTANTE || source.getKind() == YType.Kind.ENTERO
+                    || source.getKind() == YType.Kind.CARACTER;
             // caracter is a separate type: no implicit entero<->caracter conversion
             case CARACTER -> source.getKind() == YType.Kind.CARACTER;
             // bool only accepts bool

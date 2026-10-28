@@ -1,5 +1,6 @@
 package com.usac.contactoalien.contactoalienbackend.semantic.y.analysis;
 
+import com.usac.contactoalien.contactoalienbackend.semantic.types.IntegerLiterals;
 import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser.*;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.errors.YErrorReporter;
 import com.usac.contactoalien.contactoalienbackend.semantic.y.symbols.*;
@@ -17,12 +18,16 @@ public final class YExpressionTypeResolver {
     private final YStructRegistry structRegistry;
     private final YFunctionRegistry functionRegistry;
     private final YErrorReporter errors;
+    private final YCollectionRules collections;
+    private final YPostfixChain postfixChain;
     private YScope currentScope;
 
     public YExpressionTypeResolver(YStructRegistry structRegistry, YFunctionRegistry functionRegistry, YErrorReporter errors) {
         this.structRegistry = structRegistry;
         this.functionRegistry = functionRegistry;
         this.errors = errors;
+        this.collections = new YCollectionRules(errors);
+        this.postfixChain = new YPostfixChain(structRegistry, errors, this::resolve);
     }
 
     public void setScope(YScope scope) {
@@ -36,6 +41,10 @@ public final class YExpressionTypeResolver {
     private YType resolveAssignment(AssignmentContext ctx) {
         YType leftType = resolveLogicalOr(ctx.logicalOr());
         if (ctx.assignment() == null) return leftType;
+        PostfixContext target = YPlaceRules.descend(ctx.logicalOr(), PostfixContext.class);
+        if (target == null || !YPlaceRules.isPlace(target)) {
+            errors.report("The left side of '=' must be a variable, a structure field or an array element", ctx);
+        }
         YType rightType = resolveAssignment(ctx.assignment());
         if (!YTypeCompatibility.isAssignable(leftType, rightType)) {
             errors.report("Cannot assign value of type '" + rightType + "' to variable of type '" + leftType + "'", ctx);
@@ -100,7 +109,7 @@ public final class YExpressionTypeResolver {
         YType result = resolveMultiplicative(operands.get(0));
         for (int i = 0; i < ops.size(); i++) {
             YType next = resolveMultiplicative(operands.get(i + 1));
-            result = ops.get(i).equals("+") ? checkPlusOperands(result, next, ctx) : checkArithmeticOnly(result, next, ops.get(i), ctx);
+            result = ops.get(i).equals("+") ? YOperatorRules.plus(errors, result, next, ctx) : YOperatorRules.arithmetic(errors, result, next, ops.get(i), ctx);
         }
         return result;
     }
@@ -111,7 +120,7 @@ public final class YExpressionTypeResolver {
         YType result = resolveUnary(operands.get(0));
         for (int i = 0; i < ops.size(); i++) {
             YType next = resolveUnary(operands.get(i + 1));
-            result = checkArithmeticOnly(result, next, ops.get(i), ctx);
+            result = YOperatorRules.arithmetic(errors, result, next, ops.get(i), ctx);
         }
         return result;
     }
@@ -119,6 +128,12 @@ public final class YExpressionTypeResolver {
     private YType resolveUnary(UnaryContext ctx) {
         if (ctx.postfix() != null) return resolvePostfix(ctx.postfix());
         YType operand = resolveUnary(ctx.unary());
+        if (ctx.INC() != null || ctx.DEC() != null) {
+            PostfixContext target = YPlaceRules.descend(ctx.unary(), PostfixContext.class);
+            if (target == null || !YPlaceRules.isPlace(target)) {
+                errors.report("Operand of '" + ctx.getChild(0).getText() + "' must be a variable, a structure field or an array element", ctx);
+            }
+        }
         if (ctx.NOT() != null) {
             if (!YTypeCompatibility.isValidLogicalOperand(operand)) {
                 errors.report("Operator '!' requires a boolean operand, found '" + operand + "'", ctx);
@@ -142,83 +157,49 @@ public final class YExpressionTypeResolver {
             String functionName = primary.IDENTIFIER().getText();
             List<YType> argTypes = resolveArguments(ops.get(0).argumentList());
             YType callType = resolveFunctionCall(functionName, argTypes, ops.get(0));
-            return continuePostfixChain(callType, ops, 1);
+            return postfixChain.continueFrom(callType, primary, ops, 1, -1);
         }
 
         YType currentType = resolvePrimary(primary);
-        return continuePostfixChain(currentType, ops, 0);
-    }
-
-    private YType continuePostfixChain(YType startType, List<PostfixOpContext> ops, int startIndex) {
-        YType currentType = startType;
-        for (int i = startIndex; i < ops.size(); i++) {
-            PostfixOpContext op = ops.get(i);
-            if (op.DOT() != null) {
-                String fieldName = op.IDENTIFIER().getText();
-                if (currentType.isUnknown()) {
-                    currentType = YType.UNKNOWN;
-                } else if (currentType.getKind() != YType.Kind.STRUCT || currentType.isArray()) {
-                    errors.report("Cannot access '" + fieldName + "' on a value of type '" + currentType + "', which is not a known structure instance", op);
-                    currentType = YType.UNKNOWN;
-                } else {
-                    YStructSymbol struct = structRegistry.resolve(currentType.getStructName());
-                    YVariableSymbol field = struct.resolveField(fieldName);
-                    if (field == null) {
-                        errors.report("Structure '" + struct.getName() + "' has no field named '" + fieldName + "'", op);
-                        currentType = YType.UNKNOWN;
-                    } else {
-                        currentType = field.getType();
-                    }
-                }
-            } else if (op.LPAREN() != null) {
-                // a call not immediately preceded by an identifier: Y? has no first-class functions
-                if (!currentType.isUnknown()) {
-                    errors.report("Expression is not callable", op);
-                }
-                currentType = YType.UNKNOWN;
-            } else if (op.LBRACK() != null) {
-                YType indexType = resolve(op.expression());
-                if (!indexType.isUnknown() && indexType.getKind() != YType.Kind.ENTERO) {
-                    errors.report("Array index must be of type entero, found '" + indexType + "'", op);
-                }
-                if (currentType.isArray()) {
-                    currentType = currentType.asArray(-1);
-                } else if (!currentType.isUnknown()) {
-                    errors.report("Cannot index a value of type '" + currentType + "'; it is not an array", op);
-                    currentType = YType.UNKNOWN;
-                }
-            } else {
-                // INC or DEC postfix operator
-                if (!currentType.isUnknown() && !currentType.isNumeric()) {
-                    errors.report("Postfix operator '" + op.getText() + "' requires a numeric operand, found '" + currentType + "'", op);
-                }
-            }
+        if (primary.LEER() != null && !ops.isEmpty()) {
+            errors.report("The value read by leer() is not a structure or an array; store it in a variable first", ops.get(0));
+            return YType.UNKNOWN;
         }
-        return currentType;
+        YVariableSymbol variable = primary.IDENTIFIER() != null && currentScope != null
+                ? currentScope.resolve(primary.IDENTIFIER().getText()) : null;
+        return postfixChain.continueFrom(currentType, primary, ops, 0, variable == null ? -1 : variable.getLength());
     }
 
     private YType resolvePrimary(PrimaryContext ctx) {
-        if (ctx.INT_LITERAL() != null) return YType.ENTERO;
+        if (ctx.INT_LITERAL() != null) {
+            String text = ctx.INT_LITERAL().getText();
+            if (!IntegerLiterals.fits(text)) {
+                errors.report(IntegerLiterals.outOfRange(text), ctx);
+            }
+            return YType.ENTERO;
+        }
         if (ctx.FLOAT_LITERAL() != null) return YType.FLOTANTE;
         if (ctx.CHAR_LITERAL() != null) return YType.CARACTER;
         if (ctx.STRING_LITERAL() != null) return YType.CADENA;
         if (ctx.VERDADERO() != null || ctx.FALSO() != null) return YType.BOOL;
         if (ctx.IMPRIMIR() != null) {
-            resolveArguments(ctx.argumentList());
+            resolveArguments(ctx.argumentList()).forEach(printed -> YOperatorRules.requirePrintable(errors, printed, ctx));
             return YType.VOID;
         }
         if (ctx.LEER() != null) {
-            resolveArguments(ctx.argumentList());
+            if (ctx.argumentList() != null) {
+                errors.report("leer() takes no arguments", ctx);
+            }
             return YType.UNKNOWN;
         }
         if (ctx.LBRACE() != null) {
-            // structure/array literal: contents are visited (so inner errors are still
-            // reported) but the literal's own type is intentionally left undetermined, since
-            // field/element-type checking for {} literals is postponed to code generation
+            // a list of scalars of one type is an array; anything else may be a structure value list
+            // and stays undetermined
+            List<YType> values = new ArrayList<>();
             for (ExpressionContext e : ctx.expression()) {
-                resolve(e);
+                values.add(resolve(e));
             }
-            return YType.UNKNOWN;
+            return collections.listType(values);
         }
         if (ctx.IDENTIFIER() != null) {
             return resolveIdentifier(ctx);
@@ -247,6 +228,7 @@ public final class YExpressionTypeResolver {
             errors.report("Function '" + name + "' called with " + argTypes.size() + " argument(s), but declares " + function.getArity(), ctx);
             return YType.UNKNOWN;
         }
+        collections.checkArguments(function, argTypes, ctx);
         return function.getReturnType();
     }
 
@@ -257,23 +239,6 @@ public final class YExpressionTypeResolver {
             types.add(resolve(e));
         }
         return types;
-    }
-
-    private YType checkPlusOperands(YType left, YType right, ParserRuleContext ctx) {
-        if (left.isUnknown() || right.isUnknown()) return YType.UNKNOWN;
-        if (YTypeCompatibility.isStringConcatenation(left, right)) return YType.CADENA;
-        if (left.isNumeric() && right.isNumeric()) return YTypeCompatibility.arithmeticResult(left, right);
-        errors.report("Operator '+' requires two numeric operands or at least one cadena operand, found '" + left + "' and '" + right + "'", ctx);
-        return YType.UNKNOWN;
-    }
-
-    private YType checkArithmeticOnly(YType left, YType right, String opSymbol, ParserRuleContext ctx) {
-        if (left.isUnknown() || right.isUnknown()) return YType.UNKNOWN;
-        if (!(left.isNumeric() && right.isNumeric())) {
-            errors.report("Operator '" + opSymbol + "' requires numeric operands, found '" + left + "' and '" + right + "'", ctx);
-            return YType.UNKNOWN;
-        }
-        return YTypeCompatibility.arithmeticResult(left, right);
     }
 
     private List<String> extractOperators(ParserRuleContext ctx) {

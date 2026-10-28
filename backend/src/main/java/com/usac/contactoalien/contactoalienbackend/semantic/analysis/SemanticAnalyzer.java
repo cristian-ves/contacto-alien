@@ -22,10 +22,17 @@ public final class SemanticAnalyzer {
     private final ErrorReporter errors = new ErrorReporter();
 
     public ClassSymbolTable collectSymbols(ZetarianoParser.ClassDeclarationContext classCtx, CompilationUnitRegistry registry) {
-        return new com.usac.contactoalien.contactoalienbackend.semantic.analysis.ClassSymbolCollector(errors, registry).collect(classCtx);
+        return collectSymbols(classCtx, registry, "");
+    }
+
+    // packageName is the folder of the class file; it decides who may use the members with default access.
+    public ClassSymbolTable collectSymbols(ZetarianoParser.ClassDeclarationContext classCtx, CompilationUnitRegistry registry,
+                                           String packageName) {
+        return new ClassSymbolCollector(errors, registry).collect(classCtx, packageName);
     }
 
     public void analyzeBodies(ZetarianoParser.ClassDeclarationContext classCtx, ClassSymbolTable classSymbolTable, CompilationUnitRegistry registry) {
+        new InheritanceChecker(classSymbolTable, registry, errors).check(classCtx);
         for (ZetarianoParser.ClassMemberContext member : classCtx.classMember()) {
             if (member.constructorDeclaration() != null) {
                 analyzeConstructor(member.constructorDeclaration(), classSymbolTable, registry);
@@ -42,7 +49,8 @@ public final class SemanticAnalyzer {
     private void analyzeConstructor(ZetarianoParser.ConstructorDeclarationContext ctx, ClassSymbolTable classSymbolTable, CompilationUnitRegistry registry) {
         Scope parameterScope = new Scope(null);
         declareParameters(ctx.parameterList(), parameterScope, classSymbolTable, registry);
-        new StatementAnalyzer(classSymbolTable, registry, errors).analyzeBody(ctx.block(), parameterScope, ZType.VOID);
+        new StatementAnalyzer(classSymbolTable, registry, errors).analyzeConstructorBody(ctx.block(), parameterScope);
+        new ReturnFlowChecker(errors).check(ctx.block(), false);
     }
 
     private void analyzeMethod(ZetarianoParser.MethodDeclarationContext ctx, ClassSymbolTable classSymbolTable, CompilationUnitRegistry registry) {
@@ -50,6 +58,7 @@ public final class SemanticAnalyzer {
         Scope parameterScope = new Scope(null);
         declareParameters(ctx.parameterList(), parameterScope, classSymbolTable, registry);
         new StatementAnalyzer(classSymbolTable, registry, errors).analyzeBody(ctx.block(), parameterScope, returnType);
+        new ReturnFlowChecker(errors).check(ctx.block(), returnType.getKind() != ZType.Kind.VOID && !returnType.isUnknown());
     }
 
     private void declareParameters(ZetarianoParser.ParameterListContext ctx, Scope scope, ClassSymbolTable classSymbolTable, CompilationUnitRegistry registry) {

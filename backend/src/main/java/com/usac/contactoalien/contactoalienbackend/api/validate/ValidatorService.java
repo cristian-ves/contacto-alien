@@ -11,6 +11,7 @@ import com.usac.contactoalien.contactoalienbackend.grammar.y.YParser;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
+import com.usac.contactoalien.contactoalienbackend.semantic.imports.PackagePaths;
 import com.usac.contactoalien.contactoalienbackend.semantic.imports.ZetarianoSiblingLoader;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.ClassSymbolTable;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
@@ -37,7 +38,7 @@ public class ValidatorService {
 
     public ValidateResponse validate(ValidateRequest request) {
         List<CompilerError> errors = switch (request.language()) {
-            case "zetariano" -> validateZetariano(request.code(), request.imports());
+            case "zetariano" -> validateZetariano(request.code(), request.imports(), request.path());
             case "y" -> validateY(request.code());
             case "pig" -> validatePig(request.code(), request.imports());
             default -> throw new IllegalArgumentException(
@@ -46,7 +47,7 @@ public class ValidatorService {
         return new ValidateResponse(errors.isEmpty(), errors);
     }
 
-    private List<CompilerError> validateZetariano(String code, Map<String, String> imports) {
+    private List<CompilerError> validateZetariano(String code, Map<String, String> imports, String path) {
         ParseOutcome<ZetarianoParser.ClassDeclarationContext> outcome = SourceParser.parseZetariano(code);
         if (outcome.hasErrors()) {
             return outcome.errors();
@@ -54,10 +55,10 @@ public class ValidatorService {
 
         ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
         String currentClassName = (classTree != null && classTree.IDENTIFIER() != null)
-                ? classTree.IDENTIFIER().getText()
+                ? classTree.IDENTIFIER(0).getText()
                 : null;
 
-        ZetarianoSiblingLoader.LoadResult loadResult = new ZetarianoSiblingLoader().load(imports, currentClassName);
+        ZetarianoSiblingLoader.LoadResult loadResult = new ZetarianoSiblingLoader().load(imports, currentClassName, path);
         if (loadResult.hasErrors()) {
             return loadResult.errors();
         }
@@ -66,7 +67,7 @@ public class ValidatorService {
         List<CompilerError> errors = new ArrayList<>(outcome.errors());
 
         SemanticAnalyzer analyzer = new SemanticAnalyzer();
-        ClassSymbolTable classTable = analyzer.collectSymbols(classTree, registry);
+        ClassSymbolTable classTable = analyzer.collectSymbols(classTree, registry, path != null ? PackagePaths.of(path) : PackagePaths.ofSiblings(imports));
         registry.register(classTable);
         analyzer.analyzeBodies(classTree, classTable, registry);
 
@@ -120,7 +121,7 @@ public class ValidatorService {
         List<PigSemanticError> semanticErrors = new PigSemanticAnalyzer().analyze(programTree, importResult);
 
         for (PigSemanticError e : semanticErrors) {
-            errors.add(new CompilerError(e.getLine(), e.getColumn(), e.getMessage(), ErrorPhase.SEMANTIC));
+            errors.add(new CompilerError(e.getLine(), e.getColumn(), e.getMessage(), e.getPhase()));
         }
         return errors;
     }

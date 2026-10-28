@@ -18,6 +18,10 @@ public final class ErrorReporter {
         errors.add(new SemanticError(message, start.getLine(), start.getCharPositionInLine() + 1));
     }
 
+    public void report(String message, Token at) {
+        errors.add(new SemanticError(message, at.getLine(), at.getCharPositionInLine() + 1));
+    }
+
     public boolean hasErrors() { return !errors.isEmpty(); }
 
     public List<SemanticError> getErrors() { return Collections.unmodifiableList(errors); }

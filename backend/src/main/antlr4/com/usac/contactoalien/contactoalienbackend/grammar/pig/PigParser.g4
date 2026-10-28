@@ -5,7 +5,11 @@ options {
 }
 
 program
-    : importDecl* variabilesSection? maiorSection EOF
+    : importDecl* variabilesSection? functionsSection? maiorSection EOF
+    ;
+
+functionsSection
+    : FUNCTIONS_SECTION
     ;
 
 importDecl
@@ -17,10 +21,10 @@ variabilesSection
     ;
 
 variableDecl
-    : basicVarDecl
+    : objectInstanceDecl
+    | basicVarDecl
     | arrayDecl
     | structInstanceDecl
-    | objectInstanceDecl
     ;
 
 basicVarDecl
@@ -36,7 +40,7 @@ tipoBasico
     ;
 
 arrayDecl
-    : SERIES IDENTIFIER LBRACK INT_LITERAL RBRACK COLON tipoBasico
+    : SERIES IDENTIFIER LBRACK INT_LITERAL RBRACK COLON (tipoBasico | IDENTIFIER)
       (LBRACE expression (COMMA expression)* RBRACE)? SEMI
     ;
 
@@ -44,8 +48,11 @@ structInstanceDecl
     : ESTO IDENTIFIER COLON IDENTIFIER (LBRACE expression (COMMA expression)* RBRACE)? SEMI?
     ;
 
+// `esto o : novus Sub(args) : Base ;` (the type after the second colon is the declared one),
+// the same without it, and `esto o : null : Base ;`.
 objectInstanceDecl
-    : ESTO IDENTIFIER COLON NOVUS IDENTIFIER LPAREN argumentList? RPAREN SEMI
+    : ESTO IDENTIFIER COLON NOVUS IDENTIFIER LPAREN argumentList? RPAREN (COLON IDENTIFIER)? SEMI?
+    | ESTO IDENTIFIER COLON NULL COLON IDENTIFIER SEMI?
     ;
 
 maiorSection
@@ -75,7 +82,7 @@ assignmentTarget
     ;
 
 readStatement
-    : IDENTIFIER READ_OP
+    : assignmentTarget READ_OP
     ;
 
 printStatement
@@ -142,7 +149,7 @@ additiveExpr
     ;
 
 multiplicativeExpr
-    : unaryExpr ((STAR | DIV) unaryExpr)*
+    : unaryExpr ((STAR | DIV | MOD) unaryExpr)*
     ;
 
 unaryExpr
@@ -169,6 +176,7 @@ primaryExpression
     | STRING_LITERAL
     | VERUM
     | FALSUS
+    | NULL
     | IDENTIFIER
     | LPAREN expression RPAREN
     | NOVUS IDENTIFIER LPAREN argumentList? RPAREN

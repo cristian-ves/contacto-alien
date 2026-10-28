@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
         log.error("Failed to read HTTP request body", ex);
         CompilerError error = new CompilerError(
                 1,
-                0,
+                1,
                 MSG_MALFORMED_REQUEST,
                 ErrorPhase.SYNTACTIC
         );
@@ -45,9 +45,10 @@ public class GlobalExceptionHandler {
         log.error("Uncaught exception during compilation/validation", ex);
 
         int line = extractIntProperty(ex, "getLine", 1);
-        int column = extractIntProperty(ex, "getColumn", 0);
+        int column = extractIntProperty(ex, "getColumn", 1);
 
-        CompilerError error = new CompilerError(line, column, MSG_INTERNAL_ERROR, ErrorPhase.SEMANTIC);
+        // The failure may come from the lexer, the parser or the analyzers, so no source phase is claimed.
+        CompilerError error = new CompilerError(line, column, MSG_INTERNAL_ERROR, ErrorPhase.INTERNAL);
         return new ValidateResponse(false, List.of(error));
     }
 

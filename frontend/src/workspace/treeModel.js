@@ -163,3 +163,27 @@ export function listAllFilesFlat(root) {
 
   return [];
 }
+
+// Writes a file at path, creating missing folders and replacing the content of an existing file.
+export function upsertFile(root, path, content) {
+  const parts = path.split('/')
+  let next = root
+
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const folderPath = parts.slice(0, i + 1).join('/')
+    if (!findNodeByPath(next, folderPath)) {
+      next = addChild(next, parts.slice(0, i).join('/'), createFolderNode(parts[i], folderPath))
+    }
+  }
+
+  if (findNodeByPath(next, path)) {
+    return updateFileContent(next, path, content)
+  }
+
+  const parentPath = parts.slice(0, -1).join('/')
+  return addChild(next, parentPath, { ...createFileNode(parts[parts.length - 1], path), content })
+}
+
+export function hasNoFiles(root) {
+  return listAllFilesFlat(root).length === 0
+}

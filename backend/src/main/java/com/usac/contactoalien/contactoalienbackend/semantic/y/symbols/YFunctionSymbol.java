@@ -17,5 +17,6 @@ public final class YFunctionSymbol {
 
     public String getName() { return name; }
     public YType getReturnType() { return returnType; }
+    public List<YType> getParameterTypes() { return parameterTypes; }
     public int getArity() { return parameterTypes.size(); }
 }

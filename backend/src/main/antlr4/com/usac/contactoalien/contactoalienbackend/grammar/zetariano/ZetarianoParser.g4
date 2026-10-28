@@ -5,7 +5,7 @@ options {
 }
 
 classDeclaration
-    : PUBLIC CLASS IDENTIFIER LBRACE classMember* RBRACE EOF
+    : PUBLIC? CLASS IDENTIFIER (EXTENDS IDENTIFIER)? LBRACE classMember* RBRACE EOF
     ;
 
 classMember
@@ -14,11 +14,11 @@ classMember
     | methodDeclaration
     ;
 
-// Ignored at the semantic level: the project has no encapsulation, so this is parsed and
-// discarded rather than validated or enforced.
+// No modifier means default (package) access.
 visibilityModifier
     : PUBLIC
     | PRIVATE
+    | PROTECTED
     ;
 
 type
@@ -34,7 +34,7 @@ constructorDeclaration
     ;
 
 methodDeclaration
-    : visibilityModifier? (type | VOID) IDENTIFIER LPAREN parameterList? RPAREN block
+    : OVERRIDE? visibilityModifier? (type | VOID) IDENTIFIER LPAREN parameterList? RPAREN block
     ;
 
 parameterList
@@ -66,7 +66,17 @@ statement
     ;
 
 variableDeclarationStatement
-    : type IDENTIFIER (ASSIGN expression)? SEMI
+    : type IDENTIFIER (ASSIGN variableInitializer)? SEMI
+    ;
+
+variableInitializer
+    : expression
+    | arrayInitializer
+    ;
+
+// String[] names = {"a", "b"}; int[][] m = {{1, 2}, {3, 4}};
+arrayInitializer
+    : LBRACE (variableInitializer (COMMA variableInitializer)*)? RBRACE
     ;
 
 expressionStatement
@@ -171,7 +181,13 @@ multiplicativeExpression
 
 unaryExpression
     : (PLUS | MINUS | NOT | PLUS_PLUS | MINUS_MINUS) unaryExpression
+    | LPAREN castType RPAREN unaryExpression
     | postfixExpression
+    ;
+
+// (int) x, (double) x, (char) x: conversions between the numeric types
+castType
+    : INT | DOUBLE | CHAR
     ;
 
 postfixExpression
@@ -195,6 +211,7 @@ primaryExpression
     | FALSE
     | NULL
     | THIS
+    | SUPER
     | READLN LPAREN RPAREN
     | IDENTIFIER
     | arrayCreation

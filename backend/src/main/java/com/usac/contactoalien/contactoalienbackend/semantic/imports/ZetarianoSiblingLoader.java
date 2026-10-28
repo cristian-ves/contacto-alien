@@ -30,6 +30,11 @@ public final class ZetarianoSiblingLoader {
     private record ParsedSibling(String filePath, ZetarianoParser.ClassDeclarationContext classTree, String className) {}
 
     public LoadResult load(Map<String, String> imports, String currentClassName) {
+        return load(imports, currentClassName, null);
+    }
+
+    // currentPath is the location of the file under analysis, or null when it sits with its siblings.
+    public LoadResult load(Map<String, String> imports, String currentClassName, String currentPath) {
         if (imports == null || imports.isEmpty()) {
             return new LoadResult(new CompilationUnitRegistry(), Collections.emptyList());
         }
@@ -55,11 +60,11 @@ public final class ZetarianoSiblingLoader {
             }
 
             ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
-            if (classTree == null || classTree.IDENTIFIER() == null) {
+            if (classTree == null || classTree.IDENTIFIER(0) == null) {
                 continue;
             }
 
-            String siblingClassName = classTree.IDENTIFIER().getText();
+            String siblingClassName = classTree.IDENTIFIER(0).getText();
             if (siblingClassName.equals(currentClassName)) {
                 continue;
             }
@@ -79,13 +84,16 @@ public final class ZetarianoSiblingLoader {
             registry.register(new ClassSymbolTable(sibling.className()));
         }
         if (currentClassName != null && !currentClassName.isEmpty()) {
-            registry.register(new ClassSymbolTable(currentClassName));
+            ClassSymbolTable placeholder = new ClassSymbolTable(currentClassName);
+            placeholder.setPackageName(currentPath != null ? PackagePaths.of(currentPath) : PackagePaths.ofSiblings(imports));
+            registry.register(placeholder);
         }
 
         // The second pass replaces each empty table with the full one containing fields and method signatures.
         for (ParsedSibling sibling : parsedSiblings) {
             SemanticAnalyzer throwawayAnalyzer = new SemanticAnalyzer();
-            ClassSymbolTable fullTable = throwawayAnalyzer.collectSymbols(sibling.classTree(), registry);
+            ClassSymbolTable fullTable = throwawayAnalyzer.collectSymbols(sibling.classTree(), registry,
+                    PackagePaths.of(sibling.filePath()));
             registry.register(fullTable);
         }
 

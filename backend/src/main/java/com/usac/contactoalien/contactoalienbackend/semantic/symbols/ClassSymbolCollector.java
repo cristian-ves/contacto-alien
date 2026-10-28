@@ -25,9 +25,13 @@ public final class ClassSymbolCollector extends ZetarianoParserBaseVisitor<Void>
         this.registry = registry;
     }
 
-    public ClassSymbolTable collect(ZetarianoParser.ClassDeclarationContext ctx) {
-        String className = ctx.IDENTIFIER().getText();
+    public ClassSymbolTable collect(ZetarianoParser.ClassDeclarationContext ctx, String packageName) {
+        String className = ctx.IDENTIFIER(0).getText();
         classSymbolTable = new ClassSymbolTable(className);
+        classSymbolTable.setPackageName(packageName);
+        if (ctx.EXTENDS() != null) {
+            classSymbolTable.setSuperName(ctx.IDENTIFIER(1).getText());
+        }
         for (ZetarianoParser.ClassMemberContext member : ctx.classMember()) {
             visit(member);
         }
@@ -38,7 +42,8 @@ public final class ClassSymbolCollector extends ZetarianoParserBaseVisitor<Void>
     public Void visitFieldDeclaration(ZetarianoParser.FieldDeclarationContext ctx) {
         ZType type = TypeResolver.resolve(ctx.type(), classSymbolTable, registry, errors);
         String name = ctx.IDENTIFIER().getText();
-        if (!classSymbolTable.declareField(new VariableSymbol(name, type))) {
+        if (!classSymbolTable.declareField(new VariableSymbol(name, type,
+                visibilityOf(ctx.visibilityModifier()), classSymbolTable.getClassName()))) {
             errors.report("Field '" + name + "' is already declared in class '" + classSymbolTable.getClassName() + "'", ctx);
         }
         return null;
@@ -46,7 +51,13 @@ public final class ClassSymbolCollector extends ZetarianoParserBaseVisitor<Void>
 
     @Override
     public Void visitConstructorDeclaration(ZetarianoParser.ConstructorDeclarationContext ctx) {
-        classSymbolTable.addConstructor(new ConstructorSymbol(collectParameterTypes(ctx.parameterList())));
+        List<ZType> parameters = collectParameterTypes(ctx.parameterList());
+        for (ConstructorSymbol existing : classSymbolTable.getConstructors()) {
+            if (existing.getParameterTypes().equals(parameters)) {
+                errors.report("Constructor '" + classSymbolTable.getClassName() + "' with the same parameter types is already declared", ctx);
+            }
+        }
+        classSymbolTable.addConstructor(new ConstructorSymbol(parameters, visibilityOf(ctx.visibilityModifier())));
         return null;
     }
 
@@ -54,8 +65,24 @@ public final class ClassSymbolCollector extends ZetarianoParserBaseVisitor<Void>
     public Void visitMethodDeclaration(ZetarianoParser.MethodDeclarationContext ctx) {
         ZType returnType = ctx.VOID() != null ? ZType.VOID : TypeResolver.resolve(ctx.type(), classSymbolTable, registry, errors);
         String name = ctx.IDENTIFIER().getText();
-        classSymbolTable.addMethod(new MethodSymbol(name, returnType, collectParameterTypes(ctx.parameterList())));
+        List<ZType> parameters = collectParameterTypes(ctx.parameterList());
+        for (MethodSymbol existing : classSymbolTable.resolveMethods(name)) {
+            if (existing.getParameterTypes().equals(parameters)) {
+                errors.report("Method '" + name + "' with the same parameter types is already declared in class '"
+                        + classSymbolTable.getClassName() + "'", ctx);
+            }
+        }
+        classSymbolTable.addMethod(new MethodSymbol(name, returnType, parameters,
+                visibilityOf(ctx.visibilityModifier()), classSymbolTable.getClassName(), ctx.OVERRIDE() != null));
         return null;
+    }
+
+    // No modifier means default (package) access.
+    private static Visibility visibilityOf(ZetarianoParser.VisibilityModifierContext modifier) {
+        if (modifier == null) return Visibility.DEFAULT;
+        if (modifier.PUBLIC() != null) return Visibility.PUBLIC;
+        if (modifier.PROTECTED() != null) return Visibility.PROTECTED;
+        return Visibility.PRIVATE;
     }
 
     private List<ZType> collectParameterTypes(ZetarianoParser.ParameterListContext ctx) {

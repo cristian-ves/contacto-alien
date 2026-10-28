@@ -36,11 +36,17 @@ public final class ZType {
         return new ZType(this.kind, this.className, this.arrayDimensions + extraDimensions);
     }
 
+    // The type of one element: the same type with one dimension fewer.
+    public ZType elementType() {
+        return new ZType(this.kind, this.className, Math.max(0, this.arrayDimensions - 1));
+    }
+
     public Kind getKind() { return kind; }
     public String getClassName() { return className; }
     public int getArrayDimensions() { return arrayDimensions; }
     public boolean isArray() { return arrayDimensions > 0; }
-    public boolean isNumeric() { return !isArray() && (kind == Kind.INT || kind == Kind.DOUBLE); }
+    // char takes part in arithmetic and comparisons as its character code, as in Java.
+    public boolean isNumeric() { return !isArray() && (kind == Kind.INT || kind == Kind.DOUBLE || kind == Kind.CHAR); }
     public boolean isUnknown() { return kind == Kind.UNKNOWN; }
 
     @Override

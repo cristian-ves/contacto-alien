@@ -16,6 +16,10 @@ public final class YErrorReporter {
         errors.add(new YSemanticError(message, start.getLine(), start.getCharPositionInLine() + 1));
     }
 
+    public void report(String message, Token at) {
+        errors.add(new YSemanticError(message, at.getLine(), at.getCharPositionInLine() + 1));
+    }
+
     public boolean hasErrors() { return !errors.isEmpty(); }
 
     public List<YSemanticError> getErrors() { return Collections.unmodifiableList(errors); }

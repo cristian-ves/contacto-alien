@@ -9,6 +9,7 @@ import com.usac.contactoalien.contactoalienbackend.grammar.y.YParserBaseVisitor;
 import com.usac.contactoalien.contactoalienbackend.grammar.zetariano.ZetarianoParser;
 import com.usac.contactoalien.contactoalienbackend.semantic.analysis.SemanticAnalyzer;
 import com.usac.contactoalien.contactoalienbackend.semantic.errors.SemanticError;
+import com.usac.contactoalien.contactoalienbackend.semantic.imports.PackagePaths;
 import com.usac.contactoalien.contactoalienbackend.semantic.pig.errors.PigSemanticError;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.ClassSymbolTable;
 import com.usac.contactoalien.contactoalienbackend.semantic.symbols.CompilationUnitRegistry;
@@ -17,8 +18,11 @@ import com.usac.contactoalien.contactoalienbackend.semantic.y.errors.YSemanticEr
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 // Resolves and loads every import of one Pig Latin file against a virtual file map: .z imports
 // are lexed, parsed and registered into one shared CompilationUnitRegistry (so imported classes
@@ -27,6 +31,8 @@ import java.util.Map;
 // ImportedYSymbols. All .z symbol collection happens before any .z body analysis, so imported
 // classes can reference each other regardless of import order.
 public final class PigImportLoader {
+
+    private static final String NAME_MISMATCH = "does not match expected module name";
 
     public PigImportResult load(List<PigParser.ImportDeclContext> imports, Map<String, String> virtualFiles) {
         List<PigSemanticError> errors = new ArrayList<>();
@@ -38,7 +44,8 @@ public final class PigImportLoader {
             ImportPathResolver.ResolvedImport resolved = ImportPathResolver.resolve(importCtx);
             String content = virtualFiles.get(resolved.getVirtualPath());
             if (content == null) {
-                errors.add(new PigSemanticError("imported file not found: " + resolved.getVirtualPath(), 1, 0));
+                errors.add(new PigSemanticError("imported file not found: " + resolved.getVirtualPath(),
+                        importCtx.getStart().getLine(), importCtx.getStart().getCharPositionInLine() + 1));
                 continue;
             }
             if (resolved.getLanguage() == ImportPathResolver.Language.Z) {
@@ -49,10 +56,19 @@ public final class PigImportLoader {
         }
 
         // Every .z import is registered by now; analyze bodies with the full registry available.
+        // A class whose name differs from its file makes every reference to it unknown; that one error says it all.
+        boolean nameMismatch = errors.stream().anyMatch(e -> e.getMessage().contains(NAME_MISMATCH));
+        Set<String> reported = new HashSet<>();
         for (PendingZetariano pending : pendingClasses) {
+            if (nameMismatch) {
+                break;
+            }
             pending.analyzer.analyzeBodies(pending.classTree, pending.classTable, classRegistry);
             for (SemanticError e : pending.analyzer.getErrors().getErrors()) {
-                errors.add(new PigSemanticError("[" + pending.fileLabel + "] " + e.getMessage(), e.getLine(), e.getColumn()));
+                String label = "[" + pending.fileLabel + "] " + e.getMessage();
+                if (reported.add(label + e.getLine() + ":" + e.getColumn())) {
+                    errors.add(new PigSemanticError(label, e.getLine(), e.getColumn()));
+                }
             }
         }
 
@@ -65,25 +81,27 @@ public final class PigImportLoader {
         ParseOutcome<ZetarianoParser.ClassDeclarationContext> outcome = SourceParser.parseZetariano(content);
         if (outcome.hasErrors()) {
             for (CompilerError e : outcome.errors()) {
-                errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.message(), e.line(), e.column()));
+                errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.message(), e.line(), e.column(), e.phase()));
             }
             return;
         }
 
         ZetarianoParser.ClassDeclarationContext classTree = outcome.tree();
-        if (classTree == null || classTree.IDENTIFIER() == null) {
-            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] could not parse class declaration", 1, 0));
+        if (classTree == null || classTree.IDENTIFIER(0) == null) {
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] could not parse class declaration", 1, 1));
             return;
         }
 
-        String actualClassName = classTree.IDENTIFIER().getText();
+        String actualClassName = classTree.IDENTIFIER(0).getText();
         if (!actualClassName.equals(resolved.getExpectedModuleName())) {
             errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] class name '" + actualClassName
-                    + "' does not match expected module name '" + resolved.getExpectedModuleName() + "'", 1, 0));
+                    + "' " + NAME_MISMATCH + " '" + resolved.getExpectedModuleName() + "'",
+                    classTree.IDENTIFIER(0).getSymbol().getLine(), classTree.IDENTIFIER(0).getSymbol().getCharPositionInLine() + 1));
         }
 
         SemanticAnalyzer analyzer = new SemanticAnalyzer();
-        ClassSymbolTable classTable = analyzer.collectSymbols(classTree, classRegistry);
+        ClassSymbolTable classTable = analyzer.collectSymbols(classTree, classRegistry,
+                PackagePaths.of(resolved.getVirtualPath()));
         classRegistry.register(classTable);
 
         pendingClasses.add(new PendingZetariano(resolved.getVirtualPath(), classTree, classTable, analyzer));
@@ -94,32 +112,35 @@ public final class PigImportLoader {
         ParseOutcome<YParser.ProgramContext> outcome = SourceParser.parseY(content);
         if (outcome.hasErrors()) {
             for (CompilerError e : outcome.errors()) {
-                errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.message(), e.line(), e.column()));
+                errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.message(), e.line(), e.column(), e.phase()));
             }
             return;
         }
 
         YParser.ProgramContext programTree = outcome.tree();
         if (programTree == null) {
-            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] could not parse Y program", 1, 0));
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] could not parse Y program", 1, 1));
             return;
         }
 
         YSemanticAnalyzer analyzer = new YSemanticAnalyzer();
         analyzer.analyze(programTree);
 
-        List<String> structNames = collectAllStructNames(programTree);
+        List<String> structNames = new ArrayList<>(new LinkedHashSet<>(collectAllStructNames(programTree)));
         List<String> functionNames = new ArrayList<>();
         if (programTree.functionsSection() != null && programTree.functionsSection().functionDeclaration() != null) {
             for (YParser.FunctionDeclarationContext fn : programTree.functionsSection().functionDeclaration()) {
-                functionNames.add(fn.IDENTIFIER().getText());
+                String functionName = fn.IDENTIFIER().getText();
+                if (!functionNames.contains(functionName)) {
+                    functionNames.add(functionName);
+                }
             }
         }
 
         List<String> collisions = ySymbols.addFrom(analyzer.getStructRegistry(), structNames,
                 analyzer.getFunctionRegistry(), functionNames);
         for (String collision : collisions) {
-            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + collision, 1, 0));
+            errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + collision, 1, 1));
         }
         for (YSemanticError e : analyzer.getErrors().getErrors()) {
             errors.add(new PigSemanticError("[" + resolved.getVirtualPath() + "] " + e.getMessage(), e.getLine(), e.getColumn()));

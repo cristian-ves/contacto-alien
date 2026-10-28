@@ -31,6 +31,7 @@ public final class PigStatementAnalyzer {
     private final PigSymbolTable symbolTable;
     private final PigErrorReporter reporter;
     private final PigExpressionTypeResolver expressionResolver;
+    private int loopDepth;
 
     public PigStatementAnalyzer(PigImportResult importResult, PigSymbolTable symbolTable,
                                 PigErrorReporter reporter, PigExpressionTypeResolver expressionResolver) {
@@ -57,13 +58,17 @@ public final class PigStatementAnalyzer {
         else if (ctx.doWhileStatement() != null) analyzeDoWhile(ctx.doWhileStatement());
         else if (ctx.forStatement() != null) analyzeFor(ctx.forStatement());
         else if (ctx.expressionStatement() != null) analyzeExpressionStatement(ctx.expressionStatement());
-        // PERGE SEMI / INTERRUMPE SEMI: no semantic validation, same decision as Zetariano/Y?.
+        else if (loopDepth == 0 && ctx.PERGE() != null) {
+            reporter.report("'perge' can only be used inside a loop (dum, facere or per)", ctx);
+        } else if (loopDepth == 0 && ctx.INTERRUMPE() != null) {
+            reporter.report("'interrumpe' can only be used inside a loop (dum, facere or per)", ctx);
+        }
     }
 
     private void analyzeAssignment(PigParser.AssignmentStatementContext ctx) {
         PigType targetType = resolveAssignmentTarget(ctx.assignmentTarget());
         PigType valueType = expressionResolver.resolve(ctx.expression());
-        if (!PigTypeCompatibility.isAssignable(targetType, valueType)) {
+        if (!PigTypeCompatibility.isAssignable(targetType, valueType, importResult.getClassRegistry())) {
             reporter.report("cannot assign a value of type " + valueType + " to a target of type " + targetType, ctx);
         }
     }
@@ -78,20 +83,39 @@ public final class PigStatementAnalyzer {
             }
             return variable.getType();
         }
+        if (!isAssignablePlace(ctx.postfixExpression())) {
+            reporter.report("the target of an assignment or a read must be a variable, an object field or a series element", ctx);
+            return PigType.UNKNOWN;
+        }
         return expressionResolver.resolvePostfixExpression(ctx.postfixExpression());
     }
 
-    private void analyzeRead(PigParser.ReadStatementContext ctx) {
-        String name = ctx.IDENTIFIER().getText();
-        if (symbolTable.resolve(name) == null) {
-            reporter.report("variable '" + name + "' is not declared", ctx);
+    // A variable followed by a field access or an index; calls, literals and `novus` cannot be assigned.
+    private static boolean isAssignablePlace(PigParser.PostfixExpressionContext ctx) {
+        PigParser.PrimaryExpressionContext primary = ctx.primaryExpression();
+        List<PigParser.PostfixOpContext> ops = ctx.postfixOp();
+        if (primary.IDENTIFIER() == null || primary.NOVUS() != null || ops.isEmpty()) {
+            return false;
         }
-        // The type of the value read is resolved at runtime/code generation, not here.
+        PigParser.PostfixOpContext last = ops.get(ops.size() - 1);
+        return last.LBRACK() != null || (last.DOT() != null && last.IDENTIFIER() != null);
+    }
+
+    private void analyzeRead(PigParser.ReadStatementContext ctx) {
+        PigParser.AssignmentTargetContext target = ctx.assignmentTarget();
+        PigType type = resolveAssignmentTarget(target);
+        if (!type.isUnknown()) {
+            new PigCollectionRules(reporter).checkReadable(target.getText(), type, ctx);
+        }
     }
 
     private void analyzePrint(PigParser.PrintStatementContext ctx) {
         for (PigParser.ExpressionContext expr : ctx.expression()) {
-            expressionResolver.resolve(expr);
+            PigType type = expressionResolver.resolve(expr);
+            if (type.getKind() == PigType.Kind.ARRAY || type.getKind() == PigType.Kind.OBJECT
+                    || type.getKind() == PigType.Kind.VOID) {
+                reporter.report("cannot print a value of type " + type + "; print its fields or elements one by one", expr);
+            }
         }
     }
 
@@ -101,11 +125,15 @@ public final class PigStatementAnalyzer {
 
     private void analyzeWhile(PigParser.WhileStatementContext ctx) {
         checkConditionIsBool(ctx.expression(), ctx);
+        loopDepth++;
         analyzeStatements(ctx.statement());
+        loopDepth--;
     }
 
     private void analyzeDoWhile(PigParser.DoWhileStatementContext ctx) {
+        loopDepth++;
         analyzeStatements(ctx.statement());
+        loopDepth--;
         checkConditionIsBool(ctx.expression(), ctx);
     }
 
@@ -164,9 +192,11 @@ public final class PigStatementAnalyzer {
                 }
             }
 
+            loopDepth++;
             for (PigParser.StatementContext stmt : ctx.statement()) {
                 analyzeStatement(stmt);
             }
+            loopDepth--;
         } finally {
             symbolTable.exitScope();
         }
@@ -177,7 +207,7 @@ public final class PigStatementAnalyzer {
             String name = ctx.IDENTIFIER().getText();
             PigType declaredType = PigTypeMapper.mapTipoBasico(ctx.tipoBasico());
             PigType initType = expressionResolver.resolve(ctx.expression());
-            if (!PigTypeCompatibility.isAssignable(declaredType, initType)) {
+            if (!PigTypeCompatibility.isAssignable(declaredType, initType, importResult.getClassRegistry())) {
                 reporter.report("cannot initialize variable '" + name + "' of type " + declaredType
                         + " with a value of type " + initType, ctx);
             }

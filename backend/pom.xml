@@ -12,7 +12,7 @@
 	<artifactId>contacto-alien-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>contacto-alien-backend</name>
-	<description>contacto-alien-backend</description>
+	<description>Compiler and REST API for Pig Latin, Y? and Zetariano that translates programs to quadruples and RISC-V assembly and runs them in a simulator.</description>
 	<url/>
 	<licenses>
 		<license/>

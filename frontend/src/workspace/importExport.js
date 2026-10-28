@@ -94,12 +94,14 @@ export function downloadFileContent(filename, content) {
   URL.revokeObjectURL(url);
 }
 
-export async function downloadProjectAsZip(root, zipFilename = 'proyecto.zip') {
+// getContent lets the caller include unsaved edits; stripPrefix makes paths relative when a single folder is exported.
+export async function downloadProjectAsZip(root, zipFilename = 'project.zip', { getContent, stripPrefix = '' } = {}) {
   const files = listAllFilesFlat(root);
   const zip = new JSZip();
 
   for (const file of files) {
-    zip.file(file.path, file.content || '');
+    const entryPath = stripPrefix ? file.path.slice(stripPrefix.length + 1) : file.path;
+    zip.file(entryPath, getContent ? getContent(file.path) : file.content || '');
   }
 
   const blob = await zip.generateAsync({ type: 'blob' });
@@ -111,4 +113,22 @@ export async function downloadProjectAsZip(root, zipFilename = 'proyecto.zip') {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+// Reads a project exported by downloadProjectAsZip back into the same flat shape readDirectoryInput returns.
+export async function readZipFile(file) {
+  const zip = await JSZip.loadAsync(file);
+  const files = [];
+  const ignored = [];
+
+  for (const entry of Object.values(zip.files)) {
+    if (entry.dir) continue;
+    if (detectLanguageFromFilename(entry.name) === null) {
+      ignored.push(entry.name);
+      continue;
+    }
+    files.push({ name: entry.name.split('/').pop(), path: entry.name, content: await entry.async('string') });
+  }
+
+  return { files, ignored };
 }
