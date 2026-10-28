@@ -128,43 +128,7 @@ classDiagram
 
 ### 4.2. Gramática y errores (`grammar`, `errors`)
 
-```mermaid
-classDiagram
-    class SourceParser
-    class ParseOutcome
-    class YIndentLexerBase
-    class ReadlnForms
-    class CollectingErrorListener
-    class SyntaxMessages
-    class CompilerError {
-        int line
-        int column
-        String message
-        ErrorPhase phase
-    }
-    class ErrorPhase {
-        <<enumeration>>
-        LEXICAL
-        SYNTACTIC
-        SEMANTIC
-        GENERATION
-        INTERNAL
-        RUNTIME
-    }
-    class PigLexer
-    class YLexer
-    class ZetarianoLexer
-    SourceParser --> ParseOutcome
-    SourceParser --> CollectingErrorListener
-    SourceParser ..> PigLexer
-    SourceParser ..> YLexer
-    SourceParser ..> ZetarianoLexer
-    YIndentLexerBase <|-- YLexer
-    CollectingErrorListener --> SyntaxMessages
-    CollectingErrorListener --> CompilerError
-    ParseOutcome --> CompilerError
-    CompilerError --> ErrorPhase
-```
+![Diagrama de clases de gramática y errores](docs/img/diagrama-gramatica-errores.png)
 
 `ReadlnForms` reconoce, en el árbol de Zetariano, un `readln()` solitario para convertir la línea leída al tipo de la variable. Los parsers (`PigParser`, `YParser`, `ZetarianoParser`) los crea `SourceParser` junto a cada lexer.
 

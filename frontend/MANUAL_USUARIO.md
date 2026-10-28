@@ -16,7 +16,15 @@ Para usarlo se necesita:
 
 Si el backend no está activo verá una franja roja arriba con el texto «The backend is not responding. Start it and try again.». El editor sigue funcionando sin colores ni validación; cuando el backend vuelva, la franja desaparece sola (o pulse **Retry**).
 
+![Aviso de backend desconectado](docs/img/09-backend-desconectado.png)
+
+*Figura 1. Franja roja que aparece cuando el backend no responde.*
+
 ## 2. Recorrido de la pantalla
+
+![Vista general del IDE](docs/img/01-vista-general.png)
+
+*Figura 2. Vista general: explorador a la izquierda, editor al centro y panel inferior con la salida.*
 
 | Zona | Qué hace |
 | :--- | :--- |
@@ -29,6 +37,10 @@ Si el backend no está activo verá una franja roja arriba con el texto «The ba
 
 Cada archivo muestra una insignia: **P** verde (Pig Latin), **Y** azul (Y?) y **Z** naranja (Zetariano). Un punto naranja significa cambios sin guardar; un punto rojo, que el archivo tiene errores; un punto verde, que está guardado en el disco. Pase el cursor sobre un punto para ver su significado, o pulse el botón **?** del Explorer para abrir la leyenda con todas las marcas.
 
+![Leyenda de marcas del explorador](docs/img/05-leyenda-colores.png)
+
+*Figura 3. Leyenda que se abre con el botón **?** del Explorer.*
+
 ## 3. Crear y organizar archivos
 
 ### 3.1. Crear un archivo
@@ -37,6 +49,10 @@ Cada archivo muestra una insignia: **P** verde (Pig Latin), **Y** azul (Y?) y **
 3. Escriba el nombre con su extensión, por ejemplo `Banco.pig`, `Cuenta.z` o `Impuestos.y`, y pulse `Enter`. El archivo se abre en una pestaña.
 
 `Esc` cancela. Si el campo pierde el foco, el nombre se crea cuando es válido y se descarta cuando está vacío o inválido. El nombre debe terminar en `.pig`, `.y` o `.z`, no puede llevar espacios ni barras y no puede repetirse en la misma carpeta; el motivo aparece en rojo bajo la fila.
+
+![Explorador de archivos](docs/img/02-explorador.png)
+
+*Figura 4. Explorador con la fila de nombre para crear un archivo nuevo dentro del árbol.*
 
 ### 3.2. Crear una carpeta
 Icono **New folder** (o clic derecho → **New folder**), escriba el nombre en la fila nueva y pulse `Enter`. Las carpetas se abren y cierran con una animación breve (se desactiva si el sistema pide menos movimiento).
@@ -60,6 +76,10 @@ Pulse el icono de **Open from disk** y elija:
 
 Los archivos con otra extensión se ignoran y el aviso indica cuántos fueron.
 
+![Menús de abrir y guardar](docs/img/03-abrir-guardar.png)
+
+*Figura 5. Menú para abrir archivos, carpetas o un .zip desde el disco y para guardar o descargar el proyecto.*
+
 ## 5. Editar código
 
 - Haga clic en un archivo del Explorer para abrirlo; las pestañas permiten alternar entre varios. Se cierran con la **x**, con la tecla `Supr` sobre la pestaña o con clic central.
@@ -67,6 +87,10 @@ Los archivos con otra extensión se ignoran y el aviso indica cuántos fueron.
 - `Tab` inserta 4 espacios. `Enter` conserva la sangría de la línea anterior y agrega un nivel después de `{`.
 - **Opciones del editor** (icono a la derecha de las pestañas): *Validate while typing* (activa) y *Close brackets automatically* (apagada).
 - Si el coloreado no puede actualizarse (backend caído) aparece «Highlighting unavailable» y se conserva el último coloreado.
+
+![Editor con coloreado](docs/img/04-coloreado.png)
+
+*Figura 6. Editor con una pestaña por archivo, insignias de lenguaje (P, Y, Z) y coloreado en tiempo real.*
 
 ### 5.1. Guardar
 - Los cambios nuevos quedan como **borrador**: la pestaña y el árbol muestran un punto naranja y la barra de estado dice «Unsaved changes».
@@ -102,6 +126,10 @@ Notas:
 4. **Haga clic en una fila** para saltar a esa posición. Si el error está en un archivo importado, ese archivo se abre.
 5. El contador aparece en la pestaña **Errors** y en la barra de estado («No errors» / «N errors»).
 
+![Pestaña Errors](docs/img/06-errores.png)
+
+*Figura 7. Pestaña Errors con la fase, el mensaje, el archivo, la línea y la columna de cada error.*
+
 ## 7. Compilar y ejecutar un programa Pig Latin
 
 1. Abra el archivo `.pig` principal. Sus importados (`.y` y `.z`) deben estar en el árbol dentro de la carpeta del `.pig` (ver 7.2).
@@ -114,6 +142,10 @@ Notas:
    - El botón de columnas, a la derecha de las pestañas, muestra Quadruples y Assembly lado a lado.
 5. Si el programa tiene errores, no se genera código: el panel cambia a **Errors** y la salida dice «Compilation stopped with N errors».
 
+![Cuartetas y ensamblador](docs/img/08-cuartetas-ensamblador.png)
+
+*Figura 8. Cuartetas y ensamblador RISC-V lado a lado, con el buscador de etiquetas.*
+
 **Compile & Run** está deshabilitado cuando el archivo activo es `.y` o `.z`; el tooltip dice «Open a .pig file to run it». Esos archivos se validan, pero solo se ejecutan a través de un `.pig` que los importe.
 
 ### 7.1. La consola: programas que piden datos (paso a paso)
@@ -124,6 +156,10 @@ Un programa que lee (`<<`, `readln()`) se detiene y espera. La consola funciona 
 2. Al final de la consola hay una **línea de entrada** con el cursor ya puesto (dice «Type here and press Enter»). Si el programa dejó un aviso sin terminar la línea (por ejemplo `> `), la línea de entrada aparece justo a continuación.
 3. Escriba la respuesta y pulse `Enter`. Se muestra en azul, como eco, y el programa la recibe.
 4. Repita con cada pregunta. Cuando el programa termina, la línea de entrada desaparece, el botón vuelve a **Compile & Run** y se muestra el código de salida.
+
+![Consola interactiva](docs/img/07-consola-interactiva.png)
+
+*Figura 9. Consola esperando un dato: la respuesta escrita aparece en azul como eco.*
 
 Otras acciones:
 
